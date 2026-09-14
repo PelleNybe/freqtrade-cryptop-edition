@@ -94,6 +94,13 @@ This elevated version includes exclusive features designed by Crypto P to enhanc
     - **Custom Liquidation Logic**: Enhanced dry-run calculations to better simulate real-world liquidation scenarios on Bitget.
     - **Delisting Checks**: Proactive monitoring for futures contract delistings to protect your positions.
 - **Hyperliquid DEX Integration**: Full support for trading on the Hyperliquid decentralized exchange, including Cross Margin capabilities.
+- **Exclusive Pairlists**:
+    - **TrendFilter**: Filter pairs based on SMA or EMA trend strength.
+    - **SpikeFilter**: Avoid pairs that recently experienced abnormal pumps or dumps.
+- **Exclusive Protections**:
+    - **ConsecutiveLossGuard**: Stop trading after a streak of consecutive losses to prevent further drawdown.
+    - **ConsecutiveWinGuard**: Stop trading after a streak of consecutive wins to lock in profits.
+    - **TakeProfitGuard**: Stop trading when a specific absolute or relative profit is reached within a timeframe.
 
 ## Quick start
 
