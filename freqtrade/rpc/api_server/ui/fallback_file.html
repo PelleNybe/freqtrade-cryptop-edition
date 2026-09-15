@@ -16,887 +16,758 @@
   <title>Freqtrade - Crypto P Edition</title>
   <link rel="icon" type="image/png" href="/logo.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
     :root {
-      --bg-color: #0d0015; /* Dark purple/black */
-      --text-color: #e0e0e0;
-      --accent-primary: #ff00ff; /* Magenta */
-      --accent-secondary: #00ffff; /* Cyan */
-      --card-bg: #1a0b2e;
-      --nav-bg: #240046;
-      --btn-bg: #ff00ff;
-      --btn-text: #ffffff;
-      --success-color: #00ff00;
+      --bg-base: #050510;
+      --bg-glass: rgba(20, 15, 35, 0.6);
+      --bg-glass-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f0f0f5;
+      --text-muted: #94a3b8;
+      --accent-1: #ff2a85; /* Vibrant pink */
+      --accent-2: #00f0ff; /* Electric cyan */
+      --accent-3: #8a2be2; /* Deep purple */
+      --success: #10b981;
+      --error: #ef4444;
+      --gradient-primary: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+      --gradient-secondary: linear-gradient(135deg, var(--accent-2), var(--accent-3));
     }
-    html {
-        scroll-behavior: smooth;
-    }
+
+    html { scroll-behavior: smooth; }
+
     body {
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; /* Playful font */
+      background-color: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 15% 50%, rgba(255, 42, 133, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(0, 240, 255, 0.08) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
       margin: 0;
       padding: 0;
       line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
+
+    /* Glassmorphism utility */
+    .glass {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-glass-border);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
     header {
-      background-color: var(--nav-bg);
-      padding: 1rem;
-      text-align: center;
-      border-bottom: 3px solid var(--accent-secondary);
-    }
-    .logo-container {
-      margin-bottom: 1rem;
-    }
-    .logo {
-      max-width: 150px;
-      height: auto;
-      border-radius: 50%;
-      border: 3px solid var(--accent-primary);
-      box-shadow: 0 0 15px var(--accent-primary);
-      transition: transform 0.3s;
-    }
-    .logo:hover {
-      transform: rotate(5deg) scale(1.05);
-      cursor: pointer;
-    }
-    .logo.spinning {
-        animation: logo-spin 1s ease-in-out;
-    }
-    @keyframes logo-spin {
-        0% { transform: rotate(0deg) scale(1); }
-        50% { transform: rotate(180deg) scale(1.2); }
-        100% { transform: rotate(360deg) scale(1); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-            scroll-behavior: auto !important;
-        }
-    }
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--accent-secondary);
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        color: var(--accent-secondary);
-        margin-bottom: 1rem;
-        box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
-    }
-    .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: var(--success-color);
-        box-shadow: 0 0 8px var(--success-color);
-        animation: pulse 2s infinite;
-    }
-    .status-dot.inactive {
-        background-color: #ff3333;
-        box-shadow: 0 0 8px #ff3333;
-        animation: none;
-    }
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-    }
-    h1 {
-      color: var(--accent-secondary);
-      font-size: 2.5rem;
-      text-shadow: 2px 2px var(--accent-primary);
-      margin: 0.5rem 0;
-    }
-    nav {
-      margin-top: 1rem;
-    }
-    nav a {
-      color: #fff;
-      text-decoration: none;
-      margin: 0 10px;
-      font-weight: bold;
-      font-size: 1.1rem;
-      transition: color 0.3s;
-      padding: 0.5rem;
-      border-radius: 5px;
-      border-bottom: 2px solid transparent;
-    }
-    nav a:hover, nav a:focus {
-      color: var(--accent-primary);
-      text-shadow: 0 0 5px var(--accent-primary);
-      background: rgba(255, 255, 255, 0.1);
-      border-bottom-color: var(--accent-primary);
-    }
-    .external-icon {
-        width: 1em;
-        height: 1em;
-        margin-left: 0.3em;
-        vertical-align: text-top;
-        fill: currentColor;
-    }
-    .hero {
-      text-align: center;
-      padding: 3rem 1rem;
-      background: linear-gradient(180deg, var(--bg-color) 0%, var(--card-bg) 100%);
-    }
-    .content-section {
-      max-width: 900px;
-      margin: 2rem auto;
-      padding: 2rem;
-      background-color: var(--card-bg);
-      border-radius: 15px;
-      box-shadow: 0 0 20px rgba(138, 43, 226, 0.3);
-      border: 1px solid var(--accent-primary);
-      transition: transform 0.2s;
-      opacity: 0;
-      animation: fadeUp 0.6s ease-out forwards;
-    }
-    .content-section:nth-of-type(1) { animation-delay: 0.1s; }
-    .content-section:nth-of-type(2) { animation-delay: 0.2s; }
-    .content-section:nth-of-type(3) { animation-delay: 0.3s; }
-    .content-section:nth-of-type(4) { animation-delay: 0.4s; }
-
-    @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .content-section:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 5px 25px rgba(138, 43, 226, 0.5);
-    }
-    h2 {
-      color: var(--accent-primary);
-      border-bottom: 2px solid var(--accent-secondary);
-      padding-bottom: 0.5rem;
-      margin-bottom: 1.5rem;
-    }
-    h3 {
-      color: var(--accent-secondary);
-      margin-top: 1.5rem;
-    }
-    p {
-      margin-bottom: 1rem;
-      font-size: 1.1rem;
-    }
-    .install-notice {
-      background-color: rgba(255, 0, 255, 0.1);
-      border: 2px dashed var(--accent-secondary);
-      padding: 2rem;
-      margin-top: 2rem;
-      border-radius: 10px;
-      text-align: center;
-    }
-    .helper-text {
-        font-size: 0.9rem;
-        opacity: 0.95;
-        margin-top: -0.5rem;
-        margin-bottom: 1.5rem;
-    }
-    .docker-hint {
-        font-size: 0.9rem;
-        margin-top: 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        background: rgba(0, 255, 255, 0.1);
-        padding: 1rem;
-        border-radius: 8px;
-        border: 1px solid var(--accent-secondary);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .docker-hint:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 10px rgba(0, 255, 255, 0.2);
-    }
-    .docker-hint code {
-        font-size: 0.9rem;
-        padding: 0.2rem 0.5rem;
-        margin: 0; /* Override default margin */
-        border: none;
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 4px;
-    }
-    /* Terminal Style */
-    .terminal-wrapper {
-        display: inline-block;
-        background-color: #000;
-        border-radius: 8px;
-        border: 1px solid #333;
-        margin: 1rem 0;
-        overflow: hidden;
-        min-width: 300px;
-        max-width: 100%;
-        overflow-x: auto;
-        text-align: left;
-        transition: border-color 0.3s, box-shadow 0.3s;
-    }
-    .terminal-wrapper:focus-within {
-        border-color: var(--accent-secondary);
-        box-shadow: 0 0 15px var(--accent-secondary);
-    }
-    .terminal-header {
-        background: #2a2a2a;
-        padding: 5px 10px;
-        display: flex;
-        gap: 6px;
-        border-bottom: 1px solid #333;
-    }
-    .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-    }
-    .dot.red { background: #ff5f56; }
-    .dot.yellow { background: #ffbd2e; }
-    .dot.green { background: #27c93f; }
-
-    code {
-      color: #0f0;
-      padding: 0.8rem 1.2rem;
-      font-family: 'Courier New', monospace;
-      font-size: 1.3rem;
-      display: block; /* Takes full width of wrapper */
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    code:hover {
-        background: rgba(255, 255, 255, 0.05);
-    }
-    code::selection {
-        background: var(--accent-primary);
-        color: white;
-    }
-    .terminal-wrapper.copied {
-        border-color: var(--success-color);
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
-    }
-    footer {
-      text-align: center;
-      padding: 2rem;
-      background-color: var(--nav-bg);
-      color: var(--text-color);
-      margin-top: 3rem;
-      border-top: 2px solid var(--accent-primary);
-    }
-    .btn {
-      display: inline-flex;
+      padding: 1.5rem 5%;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      background-color: var(--btn-bg);
-      color: var(--btn-text);
-      padding: 0.8rem 2rem;
-      border-radius: 50px;
-      text-decoration: none;
-      font-weight: bold;
-      margin-top: 1.5rem;
-      border: none;
-      cursor: pointer;
-      font-size: 1.1rem;
-      transition: all 0.2s;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .btn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 15px var(--accent-primary);
-      background-color: #ff33ff;
-    }
-    .btn:active {
-        transform: scale(0.98);
-    }
-
-    /* Accessibility & UX Improvements */
-    :focus-visible {
-      outline: 2px solid var(--accent-secondary);
-      outline-offset: 2px;
-      box-shadow: 0 0 10px var(--accent-secondary);
-      border-radius: 4px;
-    }
-
-    .skip-link {
-      position: absolute;
-      top: -100px;
-      left: 0;
-      background: var(--accent-primary);
-      color: white;
-      padding: 1rem;
-      z-index: 1000;
-      text-decoration: none;
-      font-weight: bold;
-      transition: top 0.3s;
-    }
-
-    .skip-link:focus {
+      position: sticky;
       top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--bg-glass-border);
     }
 
-    .copy-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 15px;
-        flex-wrap: wrap;
-        margin: 1rem 0;
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
     }
 
-    .copy-btn {
-        background: transparent;
-        border: 2px solid var(--accent-secondary);
-        color: var(--accent-secondary);
-        cursor: pointer;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-size: 1.1rem;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 5px;
+    .logo-container {
+      position: relative;
     }
 
-    .copy-btn:hover {
-        background: rgba(0, 255, 255, 0.15);
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(0, 255, 255, 0.2);
+    .logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: var(--gradient-primary) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: destination-out;
+      mask-composite: exclude;
+      padding: 2px;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    .copy-btn:active {
-        transform: translateY(0);
-    }
-
-    .copy-btn.small {
-        font-size: 0.9rem;
-        padding: 0.4rem;
-    }
-
-    .btn:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-        filter: grayscale(0.5);
-        transform: none;
+    .logo-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
     }
 
     .logo-btn {
       background: none;
       border: none;
-      padding: 0;
       cursor: pointer;
-      border-radius: 50%;
+      padding: 0;
     }
 
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
+    .logo-btn:hover .logo {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .logo.spinning {
+        animation: spin-pulse 1s ease-in-out;
+    }
+
+    @keyframes spin-pulse {
+        0% { transform: scale(1) rotate(0); }
+        50% { transform: scale(1.2) rotate(180deg); }
+        100% { transform: scale(1) rotate(360deg); }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 0;
+      background: var(--gradient-secondary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .status-dot.inactive {
+      background-color: var(--error);
+      box-shadow: 0 0 8px var(--error);
+      animation: none;
+    }
+
+    .status-badge .separator {
+      color: var(--text-muted);
+      margin: 0 4px;
+    }
+
+    .status-text.inactive {
+      color: var(--error);
+    }
+
+    @keyframes pulse-dot {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    nav { display: flex; gap: 1.5rem; }
+
+    nav a {
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    nav a:hover {
+      color: var(--accent-2);
+    }
+
+    .external-icon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+      opacity: 0.7;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 4rem;
+      max-width: 800px;
+    }
+
+    .hero h2 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin: 0 0 1rem 0;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      width: 100%;
+    }
+
+    @media (max-width: 850px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+      .hero h2 { font-size: 2.5rem; }
+    }
+
+    .card {
+      padding: 2.5rem;
+      border-radius: 24px;
+      position: relative;
       overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border-width: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: var(--gradient-primary);
+      opacity: 0.5;
+    }
+
+    .card.alt::before { background: var(--gradient-secondary); }
+
+    .card h3 {
+      font-size: 1.5rem;
+      margin: 0 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card p {
+      color: var(--text-muted);
+      margin: 0 0 1.5rem 0;
+    }
+
+    /* Terminal UI */
+    .terminal-section {
+      grid-column: 1 / -1;
+      margin-top: 1rem;
+    }
+
+    .terminal {
+      background: #0a0a16;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .terminal-header {
+      background: #151525;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .td-red { background: #ff5f56; }
+    .td-yellow { background: #ffbd2e; }
+    .td-green { background: #27c93f; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+
+    .terminal-body {
+      padding: 2rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .command-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .command-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .command-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      padding: 0.5rem 0.5rem 0.5rem 1rem;
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.2s;
+    }
+
+    .command-line:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.1);
+    }
+
+    .command-text {
+      color: var(--accent-2);
+      font-size: 1.1rem;
+      user-select: all;
+    }
+
+    .command-text::before {
+      content: '$ ';
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .copy-btn {
+      background: var(--bg-glass);
+      border: 1px solid var(--bg-glass-border);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.1);
+      transform: translateY(-1px);
     }
 
     .copy-btn.copied {
-        border-color: var(--success-color);
-        color: var(--success-color);
-        background: rgba(0, 255, 0, 0.1);
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--success);
+      color: var(--success);
     }
 
-    /* Spinner */
+    .action-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 3rem;
+      gap: 1rem;
+    }
+
+    .btn-primary {
+      background: var(--gradient-primary);
+      color: white;
+      border: none;
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      border-radius: 50px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 10px 20px rgba(255, 42, 133, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 15px 25px rgba(255, 42, 133, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary.loading {
+      opacity: 0.8;
+      pointer-events: none;
+      transform: none;
+    }
+
     .spinner {
-        display: none;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255,255,255,0.3);
-        border-radius: 50%;
-        border-top-color: #fff;
-        animation: spin 1s ease-in-out infinite;
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-        to { transform: rotate(360deg); }
+    .btn-primary.loading .spinner { display: block; }
+    .btn-primary.loading .icon { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .magic-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .btn.loading .spinner {
-        display: block;
+    @media (prefers-reduced-motion: no-preference) {
+      .magic-text { animation: pulse-opacity 2s infinite; }
     }
 
-    .btn.loading .btn-text {
-        display: none; /* Optional: hide text or keep it */
+    @keyframes pulse-opacity {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
     }
 
-    @media (max-width: 600px) {
-        h1 { font-size: 2rem; }
-        .content-section { margin: 1rem; padding: 1.5rem; }
-        .copy-container { flex-direction: column; gap: 5px; }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--bg-glass-border);
+      margin-top: auto;
+      font-size: 0.9rem;
     }
-    /* Tooltips */
-    [aria-label] {
-        position: relative;
-    }
-    /* Applied to buttons and links with aria-label */
-    [aria-label]:not(.logo-btn):hover::after,
-    [aria-label]:not(.logo-btn):focus-visible::after {
-        content: attr(aria-label);
-        position: absolute;
-        bottom: 110%;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #333;
-        color: white;
-        padding: 5px 10px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        white-space: nowrap;
-        pointer-events: none;
-        opacity: 0;
-        animation: fadeIn 0.2s forwards;
-        z-index: 1000;
-        border: 1px solid var(--accent-secondary);
-        box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    }
-    @keyframes fadeIn { to { opacity: 1; } }
 
-    /* Toast Notification */
+    /* Toast */
     .toast-container {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 2000;
-        pointer-events: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
     }
 
-    .toast-notification {
-        background-color: var(--card-bg);
-        color: var(--text-color);
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: 1px solid var(--accent-secondary);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        margin-top: 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        opacity: 0;
-        transform: translateY(20px);
-        animation: slideUpFade 0.3s forwards;
+    .toast {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-glass-border);
+      color: var(--text-main);
+      padding: 12px 24px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
-    .toast-notification.success {
-        border-color: var(--success-color);
-    }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--error); }
 
-    .toast-notification.error {
-        border-color: #ff3333;
-    }
-
-    @keyframes slideUpFade {
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeOut {
-        to { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 0; transform: translateY(-10px); }
     }
 
     /* Confetti */
     .confetti {
-        position: fixed;
-        width: 10px;
-        height: 10px;
-        z-index: 9999;
-        pointer-events: none;
-        animation: confetti-fall linear forwards;
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      z-index: 9999;
+      pointer-events: none;
+      animation: confetti-fall linear forwards;
     }
+
     @keyframes confetti-fall {
-        to { transform: translateY(100vh) rotate(720deg); }
+      to { transform: translateY(100vh) rotate(720deg); }
     }
 
-    .magic-text {
-        font-size: 0.85rem;
-        margin-top: 10px;
-        color: var(--accent-secondary);
-        opacity: 0.8;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-        .magic-text {
-            animation: pulse-text 2s infinite;
-        }
-    }
-    @keyframes pulse-text {
-        0% { opacity: 0.6; }
-        50% { opacity: 1; }
-        100% { opacity: 0.6; }
+    .noscr {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--error);
+      color: var(--text-main);
+      padding: 1rem;
+      text-align: center;
+      font-weight: bold;
     }
 
-    /* Print Styles */
-    @media print {
-        body {
-            background-color: white !important;
-            color: black !important;
-        }
-        header, nav, footer, .btn, .skip-link, button, .toast-container {
-            display: none !important;
-        }
-        .terminal-wrapper {
-            background-color: white !important;
-            border: 1px solid #000;
-        }
-        .install-notice, .copy-container, .docker-hint {
-            display: block !important;
-            border: 2px solid #000 !important;
-            box-shadow: none !important;
-            background: none !important;
-            color: black !important;
-        }
-        .install-notice {
-            background-color: transparent !important;
-        }
-        code {
-            border: 1px solid #000;
-            background: #fff !important;
-            color: black !important;
-        }
-        .hero {
-            background: none !important;
-            color: black !important;
-        }
-        .content-section {
-            background-color: white !important;
-            box-shadow: none !important;
-            border: 1px solid #000 !important;
-            color: black !important;
-            break-inside: avoid;
-            margin: 0 0 1rem 0;
-        }
-        h1, h2, h3, p {
-            color: black !important;
-            text-shadow: none !important;
-            border-color: #000 !important;
-        }
-        a {
-            text-decoration: underline;
-            color: black;
-        }
-        a[href^="http"]::after {
-            content: " (" attr(href) ")";
-        }
-    }
   </style>
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Skip to content</a>
-    <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
-    <noscript>
-        <div class="install-notice" style="border-color: #ff3333; background: rgba(255, 51, 51, 0.1);">
-            <h3>⚠️ JavaScript Required</h3>
-            <p>Please enable JavaScript to use the copy buttons and refresh the dashboard.</p>
-        </div>
-    </noscript>
+  <noscript>
+    <div class="noscr" role="alert">
+      ⚠️ JavaScript Required: Please enable JavaScript to copy commands and access the dashboard.
+    </div>
+  </noscript>
 
-    <header>
-      <div class="status-badge" role="status" aria-label="System Status">
-          <span class="status-dot" title="System is operational" aria-label="System is operational"></span> Server Online
-          <span style="opacity: 0.3" aria-hidden="true">|</span>
-          <span class="status-dot inactive" title="UI is missing" aria-label="UI is missing"></span> UI Not Installed
-      </div>
+  <header class="glass">
+    <div class="header-left">
       <div class="logo-container">
-        <button class="logo-btn" id="logo-btn" aria-label="Spin the logo">
-            <img src="/logo.png" alt="Crypto P Logo" class="logo">
+        <button class="logo-btn" id="logo-btn" aria-label="Spin logo">
+          <div class="logo"><img src="/logo.png" alt="Crypto P Logo" class="logo-img"></div>
         </button>
       </div>
-      <h1>Freqtrade - Crypto P Edition</h1>
-      <nav aria-label="Main Navigation">
-        <a href="https://www.freqtrade.io/en/latest/" target="_blank" rel="noopener noreferrer" aria-label="Documentation (opens in new tab)">
-            Documentation
-            <svg class="external-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg>
-        </a>
-        <a href="https://github.com/freqtrade/freqtrade" target="_blank" rel="noopener noreferrer" aria-label="GitHub (opens in new tab)">
-            GitHub
-            <svg class="external-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg>
-        </a>
+      <div>
+        <h1>Freqtrade</h1>
+        <div style="font-size: 0.8rem; color: var(--accent-1); font-weight: 600; letter-spacing: 1px;">CRYPTO P EDITION</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2rem;">
+      <div class="status-badge glass" role="status" aria-label="System Status">
+        <span class="status-dot"></span> Server Online
+        <span class="separator">|</span>
+        <span class="status-dot inactive" id="ui-status-dot"></span> <span class="status-text inactive" id="ui-status-text">UI Missing</span>
+      </div>
+      <nav>
+        <a href="https://www.freqtrade.io/en/latest/" target="_blank" rel="noopener">Docs <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
+        <a href="https://github.com/freqtrade/freqtrade" target="_blank" rel="noopener">GitHub <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <main id="main-content" tabindex="-1">
-        <div class="hero">
-          <h2>Welcome to the Show! 🎪</h2>
-          <p>Step into the most dazzling carousel for your crypto trading.</p>
+  <main>
+    <div class="hero">
+      <h2>Welcome to the Magical Server ✨</h2>
+      <p>Your portal to advanced crypto trading, optimized by Crypto P. Unleash the power of automated strategies and real-time insights.</p>
+    </div>
+
+    <div class="grid-container">
+      <div class="card glass">
+        <h3>🎩 Meet Crypto P</h3>
+        <p>The eccentric mastermind behind this elevated edition! With high energy and a passion for innovation, Crypto P builds advanced tools, exclusive pairlists, and dynamic protections to give you the edge in the crypto markets.</p>
+        <ul style="color: var(--text-muted); padding-left: 1.2rem; margin: 0; line-height: 1.8;">
+          <li>Exclusive TrendFilter & SpikeFilter</li>
+          <li>Advanced Guard Protections</li>
+          <li>Cross Margin & Hyperliquid Support</li>
+        </ul>
+      </div>
+
+      <div class="card glass alt">
+        <h3>🚀 Unlock the Dashboard</h3>
+        <p>The UI module is currently pending installation. Once deployed, you'll gain access to beautiful live charts, detailed performance metrics, and complete bot management.</p>
+        <div style="margin-top: auto; padding: 1rem; background: rgba(0,240,255,0.05); border-radius: 12px; border: 1px dashed var(--accent-2);">
+          <span style="display:block; color:var(--accent-2); font-weight:700; margin-bottom:5px;">System Ready</span>
+          <span style="font-size:0.9rem; color:var(--text-muted);">Awaiting frontend assets compilation and deployment.</span>
         </div>
+      </div>
 
-        <section class="content-section">
-          <h2>Meet Crypto P 🎩</h2>
-          <p><strong>Crypto P</strong> is the eccentric mastermind behind Crypto P's Magical Server! With high energy, a love for cryptocurrency, and a passion for innovation, Crypto P is constantly developing new ideas, trading bots, and crypto signals. A true visionary with a mix of seriousness and playfulness, Crypto P brings the magic of cryptocurrency to life!</p>
-        </section>
-
-        <section class="content-section">
-          <h2>The Philosophy of Crypto P ✨</h2>
-          <p>Crypto P believes in the power of decentralization, the potential of blockchain technology, and the freedom that comes with it. The journey is as important as the destination, and Crypto P loves to share the excitement with others. From building advanced trading bots to providing real-time crypto signals, Crypto P’s goal is to make the crypto world accessible to everyone!</p>
-        </section>
-
-        <section class="content-section">
-          <h2>Crypto P’s Vision 🔮</h2>
-          <p>With a deep understanding of the crypto markets, Crypto P combines technical expertise with a creative and psychedelic spirit. Crypto P’s vision is to create a platform that not only provides valuable tools and insights for traders but also engages the community with fun, vibrant, and thought-provoking content. Whether it’s through high-energy crypto signals, innovative bots, or live charts, Crypto P is here to guide you on your crypto journey.</p>
-        </section>
-
-        <section class="content-section install-notice">
-          <h3>🚀 Unlock the Full Edition!</h3>
-          <p>The UI is currently hiding. Install it with this command:</p>
-          <p class="helper-text">
-              (This downloads the official dashboard to visualize your trades 📈)
-          </p>
-
-          <div class="copy-container">
-             <div class="terminal-wrapper" tabindex="0" aria-label="Terminal command output">
-                 <div class="terminal-header">
-                     <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-                 </div>
-                 <code id="install-cmd" tabindex="0" role="button" title="Click or Enter to select">freqtrade install-ui</code>
-             </div>
-             <button class="copy-btn" id="copy-install-btn" aria-label="Copy install command">
-                <span class="icon">📋</span>
-                <span class="text">Copy</span>
-             </button>
+      <div class="terminal-section">
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <div class="terminal-dot td-red"></div>
+              <div class="terminal-dot td-yellow"></div>
+              <div class="terminal-dot td-green"></div>
+            </div>
+            <div class="terminal-title">bash - freqtrade</div>
           </div>
+          <div class="terminal-body">
 
-          <div class="docker-hint">
-            <strong>🐳 Docker User?</strong> Run:
-            <code id="docker-cmd" tabindex="0" role="button" title="Click or Enter to select">docker compose run --rm freqtrade install-ui</code>
-            <button class="copy-btn small" id="copy-docker-btn" aria-label="Copy docker command">
-                <span class="icon">📋</span>
-             </button>
+            <div class="command-group">
+              <span class="command-label">Standard Installation (Native/Venv)</span>
+              <div class="command-line">
+                <code class="command-text" id="cmd-native">freqtrade install-ui</code>
+                <button class="copy-btn" onclick="copyCmd('cmd-native', this)">
+                  <span class="icon">📋</span> Copy
+                </button>
+              </div>
+            </div>
+
+            <div class="command-group" style="margin-bottom:0;">
+              <span class="command-label">Docker Deployment</span>
+              <div class="command-line">
+                <code class="command-text" id="cmd-docker">docker compose run --rm freqtrade install-ui</code>
+                <button class="copy-btn" onclick="copyCmd('cmd-docker', this)">
+                  <span class="icon">📋</span> Copy
+                </button>
+              </div>
+            </div>
+
           </div>
+        </div>
+      </div>
+    </div>
 
-          <p>Then refresh this page to enter the dashboard!</p>
-          <button class="btn" id="refresh-btn" aria-label="Refresh page">
-              <span class="spinner"></span>
-              <span class="btn-text">🔄 Refresh Dashboard</span>
-          </button>
-          <p class="magic-text">✨ I'm also watching for changes automatically!</p>
-        </section>
-    </main>
+    <div class="action-area">
+      <button class="btn-primary" id="refresh-btn">
+        <span class="spinner"></span>
+        <span class="icon">🔄</span>
+        <span class="text">Launch Dashboard</span>
+      </button>
+      <div class="magic-text">
+        <span>✨</span> Scanning for UI installation in background...
+      </div>
+    </div>
+  </main>
 
-    <footer>
-      <p>&copy; 2026 Freqtrade - Crypto P Edition</p>
-    </footer>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('logo-btn').addEventListener('click', function() { spinLogo(this); });
+  <footer>
+    <p>&copy; 2026 Freqtrade - Crypto P Edition. A Corax Colab Initiative.</p>
+  </footer>
 
-            const installCmd = document.getElementById('install-cmd');
-            installCmd.addEventListener('click', function() { selectText(this); });
-            installCmd.addEventListener('keydown', function(e) { handleKeyPress(e, this); });
+  <script>
+    document.getElementById('logo-btn').addEventListener('click', function() {
+      const el = this.querySelector('.logo');
+      el.classList.remove('spinning');
+      void el.offsetWidth;
+      el.classList.add('spinning');
+    });
 
-            document.getElementById('copy-install-btn').addEventListener('click', function() { copyCommand('install-cmd', this); });
+    function showToast(msg, type='success') {
+      const container = document.getElementById('toast-container');
+      if (container.children.length >= 3) container.firstChild.remove();
 
-            const dockerCmd = document.getElementById('docker-cmd');
-            dockerCmd.addEventListener('click', function() { selectText(this); });
-            dockerCmd.addEventListener('keydown', function(e) { handleKeyPress(e, this); });
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> ${msg}`;
+      container.appendChild(toast);
 
-            document.getElementById('copy-docker-btn').addEventListener('click', function() { copyCommand('docker-cmd', this); });
+      setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        toast.addEventListener('animationend', () => toast.remove());
+      }, 3000);
+    }
 
-            document.getElementById('refresh-btn').addEventListener('click', function() { refreshPage(this); });
-        });
+    function copyCmd(id, btn) {
+      const text = document.getElementById(id).innerText;
+      const originalText = btn.innerHTML;
 
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => success()).catch(() => error());
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy') ? success() : error();
+        } catch(e) { error(); }
+        document.body.removeChild(ta);
+      }
 
-            // Limit to 3 toasts
-            if (container.children.length >= 3) {
-                container.firstChild.remove();
-            }
+      function success() {
+        btn.classList.add('copied');
+        btn.innerHTML = '<span>✅</span> Copied';
+        showToast('Command copied to clipboard!');
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = originalText;
+        }, 2000);
+      }
+      function error() { showToast('Copy failed!', 'error'); }
+    }
 
-            const toast = document.createElement('div');
-            toast.className = `toast-notification ${type}`;
-            // Set appropriate role for screen readers
-            toast.setAttribute('role', type === 'success' ? 'status' : 'alert');
+    function fireConfetti() {
+      const colors = ['#ff2a85', '#00f0ff', '#8a2be2', '#ffffff'];
+      for (let i = 0; i < 60; i++) {
+        const conf = document.createElement('div');
+        conf.className = 'confetti';
+        conf.style.left = Math.random() * 100 + 'vw';
+        conf.style.top = '-10px';
+        conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        document.body.appendChild(conf);
+        setTimeout(() => conf.remove(), 4000);
+      }
+    }
 
-            const icon = type === 'success' ? '✅' : '❌';
-            toast.innerHTML = `<span aria-hidden="true">${icon}</span><span>${message}</span>`;
+    async function checkStatus(isManual = false) {
+      const btn = document.getElementById('refresh-btn');
+      if(isManual) btn.classList.add('loading');
 
-            container.appendChild(toast);
+      try {
+        const res = await fetch('/ui_version');
+        const data = await res.json();
 
-            // Auto remove
-            setTimeout(() => {
-                toast.style.animation = 'fadeOut 0.3s forwards';
-                toast.addEventListener('animationend', () => {
-                    toast.remove();
-                });
-            }, 3000);
+        if (data.version && data.version !== 'not_installed') {
+          // Update status badge immediately
+          document.getElementById('ui-status-dot').classList.remove('inactive');
+          const txt = document.getElementById('ui-status-text');
+          txt.classList.remove('inactive');
+          txt.innerText = 'UI Installed';
+
+          if(isManual) {
+             fireConfetti();
+             showToast('UI Detected! Launching...', 'success');
+             setTimeout(() => location.reload(), 1500);
+          }
+          return true; // Installed
+        } else {
+          if(isManual) {
+            showToast('UI not found. Please run the install command.', 'error');
+            setTimeout(() => btn.classList.remove('loading'), 1000);
+          }
+          return false;
         }
+      } catch (e) {
+        if(isManual) location.reload();
+        return false;
+      }
+    }
 
-        function selectText(element) {
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
+    document.getElementById('refresh-btn').addEventListener('click', () => checkStatus(true));
 
-        function handleKeyPress(event, element) {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                const container = element.closest('.copy-container') || element.closest('.docker-hint');
-                const copyBtn = container ? container.querySelector('.copy-btn') : null;
-
-                if (copyBtn) {
-                    copyCommand(element.id, copyBtn);
-                } else {
-                    selectText(element);
-                }
-            }
-        }
-
-        function copyCommand(elementId, btn) {
-            const codeElement = document.getElementById(elementId);
-            const cmdText = codeElement.innerText;
-            const terminalWrapper = codeElement.closest('.terminal-wrapper'); // Find parent wrapper if exists
-
-            const iconSpan = btn.querySelector('.icon');
-            const textSpan = btn.querySelector('.text'); // May be null for icon-only buttons
-
-            if (!btn.dataset.originalIcon) {
-                btn.dataset.originalIcon = iconSpan ? iconSpan.innerText : '📋';
-            }
-            const originalIcon = btn.dataset.originalIcon;
-
-            if (textSpan && !btn.dataset.originalText) {
-                btn.dataset.originalText = textSpan.innerText;
-            }
-
-            function onCopySuccess() {
-                btn.classList.add('copied');
-                if (terminalWrapper) terminalWrapper.classList.add('copied');
-
-                if (iconSpan) iconSpan.innerText = '✅';
-                if (textSpan) textSpan.innerText = 'Copied!';
-
-                showToast('Command copied to clipboard!', 'success');
-
-                setTimeout(() => {
-                    btn.classList.remove('copied');
-                    if (terminalWrapper) terminalWrapper.classList.remove('copied');
-
-                    if (iconSpan) iconSpan.innerText = originalIcon;
-                    if (textSpan && btn.dataset.originalText) {
-                        textSpan.innerText = btn.dataset.originalText;
-                    }
-                }, 2000);
-            }
-
-            function onCopyError() {
-                showToast('Copy failed. Please copy manually.', 'error');
-            }
-
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(cmdText).then(onCopySuccess).catch(err => {
-                    console.error('Failed to copy: ', err);
-                    onCopyError();
-                });
-            } else {
-                // Fallback for older browsers
-                try {
-                    const textArea = document.createElement("textarea");
-                    textArea.value = cmdText;
-
-                    // Ensure the textarea is not visible but part of the DOM
-                    textArea.style.position = "fixed";
-                    textArea.style.left = "-9999px";
-                    textArea.style.top = "0";
-
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-
-                    const successful = document.execCommand('copy');
-                    document.body.removeChild(textArea);
-
-                    if (successful) {
-                        onCopySuccess();
-                    } else {
-                        onCopyError();
-                    }
-                } catch (err) {
-                    console.error('Fallback copy failed: ', err);
-                    onCopyError();
-                }
-            }
-        }
-
-        function fireConfetti() {
-            const colors = ['#ff00ff', '#00ffff', '#ffffff', '#ffff00'];
-            for (let i = 0; i < 50; i++) {
-                const conf = document.createElement('div');
-                conf.className = 'confetti';
-                conf.style.left = Math.random() * 100 + 'vw';
-                conf.style.top = '-10px';
-                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                conf.style.animationDuration = (Math.random() * 3 + 2) + 's';
-                document.body.appendChild(conf);
-                setTimeout(() => conf.remove(), 5000);
-            }
-        }
-
-        async function refreshPage(btn) {
-            btn.disabled = true;
-            btn.classList.add('loading');
-
-            try {
-                // Smart Refresh: Check if UI is installed before reloading
-                const response = await fetch('/ui_version');
-                const data = await response.json();
-
-                if (data.version && data.version !== 'not_installed') {
-                    fireConfetti();
-                    showToast('UI found! Reloading...', 'success');
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    showToast('UI still not installed. Please run the command above.', 'error');
-                    // Reset button state so user can try again
-                    setTimeout(() => {
-                        btn.disabled = false;
-                        btn.classList.remove('loading');
-                    }, 2000);
-                }
-            } catch (e) {
-                console.error("Failed to check UI version:", e);
-                // Fallback to reload if fetch fails (e.g. network error)
-                location.reload();
-            }
-        }
-
-        function spinLogo(btn) {
-            const img = btn.querySelector('img');
-            img.classList.remove('spinning');
-            void img.offsetWidth; // Trigger reflow
-            img.classList.add('spinning');
-        }
-
-        // Auto-check for UI installation (Magic Refresh ✨)
-        // Poll every 5 seconds to see if the UI has appeared
-        let checkInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/ui_version');
-                const data = await response.json();
-                if (data.version && data.version !== 'not_installed') {
-                    clearInterval(checkInterval);
-                    fireConfetti();
-                    showToast('UI Installed! Redirecting...', 'success');
-                    setTimeout(() => location.reload(), 2000);
-                }
-            } catch (e) {
-                // Ignore errors during polling (e.g. server restarting)
-            }
-        }, 5000);
-    </script>
+    let checkInterval = setInterval(async () => {
+      const installed = await checkStatus();
+      if (installed) {
+        clearInterval(checkInterval);
+        fireConfetti();
+        showToast('UI Installed Automatically! Redirecting...', 'success');
+        setTimeout(() => location.reload(), 2000);
+      }
+    }, 5000);
+  </script>
 </body>
 </html>
