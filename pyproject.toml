@@ -345,4 +345,4 @@ exclude = [
 ignore-words-list = "coo,fo,strat,zar,selectin"
 skip="*.svg,./user_data,freqtrade/rpc/api_server/ui/installed,freqtrade/exchange/*.json"
 [tool.vercel]
-entrypoint = "freqtrade.rpc.api_server.webserver:ApiServer"
+entrypoint = "api.index:app"
