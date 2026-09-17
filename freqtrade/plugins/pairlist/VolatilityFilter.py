@@ -152,7 +152,7 @@ class VolatilityFilter(IPairList):
 
         if daily_candles is not None and not daily_candles.empty:
             returns = np.log(daily_candles["close"].shift(1) / daily_candles["close"])
-            returns.fillna(0, inplace=True)
+            returns = returns.fillna(0)
 
             volatility_series = returns.rolling(window=self._days).std() * np.sqrt(self._days)
             volatility_avg = volatility_series.mean()
