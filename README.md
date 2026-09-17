@@ -253,3 +253,19 @@ To run this bot we recommend you a cloud instance with a minimum of:
 - [TA-Lib](https://ta-lib.github.io/ta-lib-python/)
 - [virtualenv](https://virtualenv.pypa.io/en/stable/installation.html) (Recommended)
 - [Docker](https://www.docker.com/products/docker) (Recommended)
+
+---
+
+## Edge Hardware Performance Updates (Crypto P Edition)
+
+This fork by **Pelle Nyberg (Corax CoLAB)** has been significantly optimized for deployment on resource-constrained Edge environments, such as a headless Raspberry Pi 5.
+
+* **Memory-Optimized Data Pipeline**: Aggressive automatic downcasting (float64 -> float32) natively integrated to minimize RAM bloat.
+* **Database I/O Optimization**: Batched SQLAlchemy commit context manager explicitly tailored to reduce NVMe and SD Card wear out during mass ingestions.
+* **Hardware Telemetry via RPC**: Built-in CPU temperature and Disk I/O metrics added directly to the existing JSON API sysinfo endpoints.
+* **JSON Telemetry Structure**: Out-of-the-box support for pure JSON struct logging (`logformat: "json"`), simplifying ingestions into Elasticsearch or Datadog edge agents.
+* **Strategy Profiler Decorator**: Internal `@profile_execution` wrapper across core populate methodologies to identify bottleneck metrics at runtime.
+
+**Developed by:**
+* Pelle Nyberg - [https://pellenybe.github.io](https://pellenybe.github.io)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)

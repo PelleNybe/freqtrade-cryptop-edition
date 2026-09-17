@@ -328,11 +328,13 @@ def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
     :return: Dataframe converted to float/int 32s
     """
 
-    logger.debug(f"Memory usage of dataframe is {df.memory_usage().sum() / 1024**2:.2f} MB")
+    logger.debug(
+        f"Memory usage of dataframe before downcast: {df.memory_usage().sum() / 1024**2:.2f} MB"
+    )
 
     df_dtypes = df.dtypes
     for column, dtype in df_dtypes.items():
-        if column in ["open", "high", "low", "close", "volume"]:
+        if column == "date":
             continue
         if dtype == np.float64:
             df_dtypes[column] = np.float32
@@ -340,6 +342,6 @@ def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
             df_dtypes[column] = np.int32
     df = df.astype(df_dtypes)
 
-    logger.debug(f"Memory usage after optimization is: {df.memory_usage().sum() / 1024**2:.2f} MB")
+    logger.debug(f"Memory usage after downcast: {df.memory_usage().sum() / 1024**2:.2f} MB")
 
     return df
