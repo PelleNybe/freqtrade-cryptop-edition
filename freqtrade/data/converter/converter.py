@@ -98,12 +98,12 @@ def clean_ohlcv_dataframe(
     else:
         # Optimization: Skip sort if already sorted (monotonic increasing)
         if not data["date"].is_monotonic_increasing:
-            data.sort_values(by="date", inplace=True)
+            data = data.sort_values(by="date")
 
         if not (
             isinstance(data.index, pd.RangeIndex) and data.index.start == 0 and data.index.step == 1
         ):
-            data.reset_index(drop=True, inplace=True)
+            data = data.reset_index(drop=True)
 
         # Optimization: Only reorder/filter columns if necessary to avoid copy
         if list(data.columns) != ["date", "open", "high", "low", "close", "volume"]:
@@ -156,7 +156,7 @@ def ohlcv_fill_up_missing_data(dataframe: DataFrame, timeframe: str, pair: str) 
             "volume": 0,
         },
     )
-    df.reset_index(inplace=True)
+    df = df.reset_index()
     len_before = len(dataframe)
     len_after = len(df)
     pct_missing = (len_after - len_before) / len_before if len_before > 0 else 0
