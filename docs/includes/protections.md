@@ -17,6 +17,9 @@ All protection end times are rounded up to the next candle to avoid sudden, unex
 * [`MaxDrawdown`](#maxdrawdown) Stop trading if max-drawdown is reached.
 * [`LowProfitPairs`](#low-profit-pairs) Lock pairs with low profits
 * [`CooldownPeriod`](#cooldown-period) Don't enter a trade right after selling a trade.
+* [`ConsecutiveLossGuard`](#consecutive-loss-guard) Stop trading after a streak of consecutive losses.
+* [`ConsecutiveWinGuard`](#consecutive-win-guard) Stop trading after a streak of consecutive wins.
+* [`TakeProfitGuard`](#take-profit-guard) Stop trading when a specific absolute or relative profit is reached.
 
 ### Common settings to all Protections
 
@@ -131,6 +134,65 @@ def protections(self):
 !!! Note
     This Protection applies only at pair-level, and will never lock all pairs globally.
     This Protection does not consider `lookback_period` as it only looks at the latest trade.
+
+#### Consecutive Loss Guard
+
+`ConsecutiveLossGuard` uses all trades within `lookback_period` in minutes (or in candles when using `lookback_period_candles`) to determine if a streak of consecutive losses has occurred.
+If `trade_limit` or more consecutive trades resulted in a loss, trading will stop for `stop_duration` in minutes (or in candles when using `stop_duration_candles`, or until the set time when using `unlock_at`).
+
+This applies across all pairs, unless `only_per_pair` is set to true, which will then only look at one pair at a time.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "ConsecutiveLossGuard",
+            "lookback_period_candles": 24,
+            "trade_limit": 3,
+            "stop_duration_candles": 4,
+            "only_per_pair": False
+        }
+    ]
+```
+
+#### Consecutive Win Guard
+
+`ConsecutiveWinGuard` works exactly like `ConsecutiveLossGuard`, but stops trading after a streak of consecutive wins. This can be used to lock in profits after a winning streak and prevent giving them back to the market during an anticipated mean reversion.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "ConsecutiveWinGuard",
+            "lookback_period_candles": 24,
+            "trade_limit": 3,
+            "stop_duration_candles": 4,
+            "only_per_pair": False
+        }
+    ]
+```
+
+#### Take Profit Guard
+
+`TakeProfitGuard` uses all trades within `lookback_period` in minutes (or in candles when using `lookback_period_candles`) to determine if a specific profit target has been reached.
+If the combined absolute profit (`target_profit_abs`) or percentage profit (`target_profit_pct`) reaches the target, trading will stop for `stop_duration` in minutes (or in candles when using `stop_duration_candles`, or until the set time when using `unlock_at`).
+
+The percentage profit (`target_profit_pct`) is calculated relative to the starting balance of the lookback period.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "TakeProfitGuard",
+            "lookback_period_candles": 24,
+            "target_profit_pct": 5.0, # Stop trading if we make 5% profit
+            "stop_duration_candles": 12
+        }
+    ]
+```
 
 ### Full example of Protections
 

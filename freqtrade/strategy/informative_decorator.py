@@ -154,7 +154,9 @@ def _create_and_merge_informative_pair(
         "asset": asset,
         "timeframe": timeframe,
     }
-    inf_dataframe.rename(columns=lambda column: formatter(column=column, **fmt_args), inplace=True)
+    inf_dataframe = inf_dataframe.rename(
+        columns=lambda column: formatter(column=column, **fmt_args)
+    )
 
     date_column = formatter(column="date", **fmt_args)
     if date_column in dataframe.columns:
