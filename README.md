@@ -284,3 +284,18 @@ This fork by **Pelle Nyberg (Corax CoLAB)** features additional optimization des
 **Developed by:**
 * Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
 * Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 3)
+
+Continuing the effort to push Freqtrade's edge limits for ARM64/NVMe setups, **Pelle Nyberg (Corax CoLAB)** brings the following IoT & infrastructure upgrades:
+
+* **SQLite NVMe PRAGMA Optimization**: Dynamically injects `journal_mode=WAL`, `temp_store=MEMORY`, and `synchronous=NORMAL` during SQLAlchemy connections, drastically boosting multi-threaded read/write performance on USB-tethered NVMe drives.
+* **Resumable Hyperopt with NVMe Checkpoints**: Introduced `--resume` to natively store Optuna study states onto SQLite storage. Intensive ML tasks can now survive unexpected power losses or reboots by gracefully resuming from the exact previous epoch.
+* **Resilient Websocket & API Backoff**: Integrated exponential backoff with randomized jitter directly into API connection handlers to seamlessly handle spotty IoT / 4G cellular drops without halting the daemon.
+* **Native MQTT Notification Provider**: Configurable direct integration for decentralized IoT networks. Configure the `mqtt` block in your config to instantly stream real-time JSON status updates to local message brokers like Mosquitto.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)

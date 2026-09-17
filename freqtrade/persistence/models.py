@@ -1,14 +1,14 @@
 """
 This module contains the class to persist trades into SQLite
 """
-
 import functools
 import logging
 import threading
 from contextvars import ContextVar
 from typing import Any, Final
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -74,6 +74,18 @@ def init_db(db_url: str) -> None:
 
     try:
         engine = create_engine(db_url, future=True, **kwargs)
+
+        # EDGE OPTIMIZATION: SQLite NVMe PRAGMA Tuning
+        if db_url.startswith("sqlite"):
+
+            @event.listens_for(Engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA temp_store=MEMORY")
+                cursor.close()
+
     except NoSuchModuleError:
         raise OperationalException(
             f"Given value for db_url: '{db_url}' is no valid database URL! (See {_SQL_DOCS_URL})"

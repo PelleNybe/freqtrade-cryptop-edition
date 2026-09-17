@@ -45,6 +45,13 @@ class RPCManager:
 
             self.registered_modules.append(Webhook(self._rpc, config))
 
+        # EDGE OPTIMIZATION: Enable MQTT
+        if config.get("mqtt", {}).get("enabled", False):
+            logger.info("Enabling rpc.mqtt ...")
+            from freqtrade.rpc.mqtt import MQTT
+
+            self.registered_modules.append(MQTT(freqtrade))
+
         # Enable local rest api server for cmd line control
         if config.get("api_server", {}).get("enabled", False):
             logger.info("Enabling rpc.api_server")
