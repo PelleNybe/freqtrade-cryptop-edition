@@ -1,10 +1,12 @@
+
+
 """
 This module contains the class to persist trades into SQLite
 """
-
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from math import isclose
@@ -1793,7 +1795,11 @@ class Trade(ModelBase, LocalTrade):
 
     @staticmethod
     def commit():
-        Trade.session.commit()
+        # Added a check if batch_commit is active, if not, commit.
+        if getattr(Trade.session, "_ft_batch_commit_active", False):
+            Trade.session.flush()
+        else:
+            Trade.session.commit()
 
     @staticmethod
     def rollback():
@@ -2156,3 +2162,24 @@ class Trade(ModelBase, LocalTrade):
             .filter(*trade_filter)
         ).scalar_one()
         return trading_volume or 0.0
+
+
+
+
+@contextmanager
+def batched_commit():
+    """
+    Context manager to batch database commits.
+    Useful for heavy I/O operations like backtesting or fast data ingestion on edge devices.
+    """
+    session = Trade.session
+    original_state = getattr(session, "_ft_batch_commit_active", False)
+    session._ft_batch_commit_active = True
+    try:
+        yield
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session._ft_batch_commit_active = original_state

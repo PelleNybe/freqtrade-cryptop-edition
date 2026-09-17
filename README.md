@@ -253,3 +253,34 @@ To run this bot we recommend you a cloud instance with a minimum of:
 - [TA-Lib](https://ta-lib.github.io/ta-lib-python/)
 - [virtualenv](https://virtualenv.pypa.io/en/stable/installation.html) (Recommended)
 - [Docker](https://www.docker.com/products/docker) (Recommended)
+
+---
+
+## Edge Hardware Performance Updates (Crypto P Edition)
+
+This fork by **Pelle Nyberg (Corax CoLAB)** has been significantly optimized for deployment on resource-constrained Edge environments, such as a headless Raspberry Pi 5.
+
+* **Memory-Optimized Data Pipeline**: Aggressive automatic downcasting (float64 -> float32) natively integrated to minimize RAM bloat.
+* **Database I/O Optimization**: Batched SQLAlchemy commit context manager explicitly tailored to reduce NVMe and SD Card wear out during mass ingestions.
+* **Hardware Telemetry via RPC**: Built-in CPU temperature and Disk I/O metrics added directly to the existing JSON API sysinfo endpoints.
+* **JSON Telemetry Structure**: Out-of-the-box support for pure JSON struct logging (`logformat: "json"`), simplifying ingestions into Elasticsearch or Datadog edge agents.
+* **Strategy Profiler Decorator**: Internal `@profile_execution` wrapper across core populate methodologies to identify bottleneck metrics at runtime.
+
+**Developed by:**
+* Pelle Nyberg - [https://pellenybe.github.io](https://pellenybe.github.io)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 2)
+
+This fork by **Pelle Nyberg (Corax CoLAB)** features additional optimization designed for Raspberry Pi 5.
+
+* **Indicator Caching System for Backtesting**: Stores the output of `populate_indicators` (using Parquet) natively to the NVMe drive. Substantially reduces CPU usage on subsequent backtest runs with identical parameters.
+* **Enforced Parquet/Feather Pipeline**: By default, data formatting aggressively enforces `parquet` leveraging `lz4` compression out of the box for the ideal balance between low CPU loads and maximizing USB 3.1 / NVMe bandwidth.
+* **Thermal-Aware FreqAI CPU Training**: Active thermal governor during FreqAI ML background training. Halts processes for 15s immediately if the `/sys/class/thermal/thermal_zone0/temp` exceeds 75°C to strictly prevent systemic thermal throttling, ensuring the active trading loop execution is unhindered.
+* **In-Memory API Response Caching**: Uses a TTLCache on heavy GET endpoints (like `/status` and `/profit`) natively on the server layer. Enables aggressive querying from external monitoring without straining local SQLite I/O limits.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)

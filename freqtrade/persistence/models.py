@@ -85,6 +85,7 @@ def init_db(db_url: str) -> None:
     Trade.session = scoped_session(
         sessionmaker(bind=engine, autoflush=False), scopefunc=get_request_or_thread_id
     )
+    Trade.session._ft_batch_commit_active = False
     Order.session = Trade.session
     PairLock.session = Trade.session
     _KeyValueStoreModel.session = Trade.session

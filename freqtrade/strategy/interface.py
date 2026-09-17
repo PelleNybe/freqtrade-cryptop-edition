@@ -41,6 +41,7 @@ from freqtrade.strategy.informative_decorator import (
 from freqtrade.strategy.strategy_validation import StrategyResultValidator
 from freqtrade.strategy.strategy_wrapper import strategy_safe_wrapper
 from freqtrade.util import dt_now, dt_ts
+from freqtrade.utils.profiler import profile_execution
 from freqtrade.wallets import Wallets
 
 
@@ -1795,6 +1796,7 @@ class IStrategy(ABC, HyperStrategyMixin):
             logger.debug("Populated dataframe with trades.")
         return dataframe
 
+    @profile_execution
     def advise_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Populate indicators that will be used in the Buy, Sell, short, exit_short strategy
@@ -1820,6 +1822,7 @@ class IStrategy(ABC, HyperStrategyMixin):
             dataframe = reduce_dataframe_footprint(dataframe)
         return dataframe
 
+    @profile_execution
     def advise_entry(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Based on TA indicators, populates the entry order signal for the given dataframe
@@ -1839,6 +1842,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
         return df
 
+    @profile_execution
     def advise_exit(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Based on TA indicators, populates the exit order signal for the given dataframe

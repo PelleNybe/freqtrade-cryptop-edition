@@ -64,6 +64,9 @@ FT_LOGGING_CONFIG = {
         "standard": {
             "format": LOGFORMAT,
         },
+        "json": {
+            "class": "freqtrade.loggers.json_formatter.JsonFormatter",
+        },
     },
     "handlers": {
         "console": {
@@ -213,6 +216,11 @@ def setup_logging(config: Config) -> None:
         _set_log_levels(
             log_config, verbosity, config.get("api_server", {}).get("verbosity", "info")
         )
+
+        if config.get("logformat") == "json":
+            for handler in log_config["handlers"].values():
+                if handler.get("formatter") == "standard":
+                    handler["formatter"] = "json"
 
         logging.config.dictConfig(log_config)
 
