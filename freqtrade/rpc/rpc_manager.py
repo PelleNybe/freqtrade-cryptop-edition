@@ -52,6 +52,20 @@ class RPCManager:
 
             self.registered_modules.append(MQTT(freqtrade))
 
+        # EDGE OPTIMIZATION: Enable Prometheus
+        if config.get("prometheus", {}).get("enabled", False):
+            logger.info("Enabling rpc.prometheus ...")
+            from freqtrade.rpc.prometheus import PrometheusExporter
+
+            self.registered_modules.append(PrometheusExporter(freqtrade))
+
+        # EDGE OPTIMIZATION: Enable Apprise Omni-Notifications
+        if config.get("apprise", {}).get("enabled", False):
+            logger.info("Enabling rpc.apprise ...")
+            from freqtrade.rpc.apprise_notification import AppriseNotification
+
+            self.registered_modules.append(AppriseNotification(freqtrade))
+
         # Enable local rest api server for cmd line control
         if config.get("api_server", {}).get("enabled", False):
             logger.info("Enabling rpc.api_server")

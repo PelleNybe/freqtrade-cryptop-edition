@@ -17,6 +17,7 @@ from freqtrade import constants
 from freqtrade.configuration import remove_exchange_credentials, validate_config_consistency
 from freqtrade.constants import BuySell, Config, EntryExecuteMode, ExchangeConfig, LongShort
 from freqtrade.data.dataprovider import DataProvider
+from freqtrade.data.defillama import risk_guard
 from freqtrade.enums import (
     ExitCheckTuple,
     ExitType,
@@ -199,6 +200,10 @@ class FreqtradeBot(LoggingMixin):
         :return: None
         """
         logger.info("Cleaning up modules ...")
+
+        # Stop DefiLlama worker
+        risk_guard.stop()
+
         try:
             # Wrap db activities in shutdown to avoid problems if database is gone,
             # and raises further exceptions.
@@ -228,6 +233,9 @@ class FreqtradeBot(LoggingMixin):
         Called on startup and after reloading the bot - triggers notifications and
         performs startup tasks
         """
+        # EDGE OPTIMIZATION: Start DefiLlama On-Chain Risk Guard
+        risk_guard.start()
+
         migrate_live_content(self.config, self.exchange)
         set_startup_time()
 

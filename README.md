@@ -1,16 +1,16 @@
-# Freqtrade - Crypto P Edition
+# Freqtrade - Crypto P Edition - Crypto P Edition
 
-[![Freqtrade CI](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml)
+[![Freqtrade - Crypto P Edition CI](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04864/status.svg)](https://doi.org/10.21105/joss.04864)
 [![Coverage Status](https://coveralls.io/repos/github/freqtrade/freqtrade/badge.svg?branch=develop&service=github)](https://coveralls.io/github/freqtrade/freqtrade?branch=develop)
 [![Documentation](https://readthedocs.org/projects/freqtrade/badge/)](https://www.freqtrade.io)
 
-**This is Crypto P's elevated version of Freqtrade.**
+**This is Crypto P's elevated version of Freqtrade - Crypto P Edition.**
 Visit [https://cryptop.coraxcolab.com](https://cryptop.coraxcolab.com) for more information.
 
-Freqtrade - Crypto P Edition is a free and open source crypto trading bot written in Python. It is designed to support all major exchanges and be controlled via Telegram or webUI. It contains backtesting, plotting and money management tools as well as strategy optimization by machine learning.
+Freqtrade - Crypto P Edition - Crypto P Edition is a free and open source crypto trading bot written in Python. It is designed to support all major exchanges and be controlled via Telegram or webUI. It contains backtesting, plotting and money management tools as well as strategy optimization by machine learning.
 
-![Freqtrade - Crypto P Edition](docs/assets/rebranded_screenshot.png)
+![Freqtrade - Crypto P Edition - Crypto P Edition](docs/assets/rebranded_screenshot.png)
 
 ## Disclaimer
 
@@ -117,7 +117,7 @@ usage: freqtrade [-h] [-V]
                  {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,edge,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-freqaimodels,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,plot-dataframe,plot-profit,webserver,strategy-updater,lookahead-analysis,recursive-analysis}
                  ...
 
-Freqtrade - Crypto P Edition - Free, open source crypto trading bot
+Freqtrade - Crypto P Edition - Crypto P Edition - Free, open source crypto trading bot
 
 positional arguments:
   {trade,create-userdir,new-config,show-config,new-strategy,download-data,convert-data,convert-trade-data,trades-to-ohlcv,list-data,backtesting,backtesting-show,backtesting-analysis,edge,hyperopt,hyperopt-list,hyperopt-show,list-exchanges,list-markets,list-pairs,list-strategies,list-hyperoptloss,list-freqaimodels,list-timeframes,show-trades,test-pairlist,convert-db,install-ui,plot-dataframe,plot-profit,webserver,strategy-updater,lookahead-analysis,recursive-analysis}
@@ -194,7 +194,7 @@ The project is currently setup in two main branches:
 
 ### Help / Discord
 
-For any questions not covered by the documentation or for further information about the bot, or to simply engage with like-minded individuals, we encourage you to join the Freqtrade [discord server](https://discord.gg/p7nuUNVfP7).
+For any questions not covered by the documentation or for further information about the bot, or to simply engage with like-minded individuals, we encourage you to join the Freqtrade - Crypto P Edition [discord server](https://discord.gg/p7nuUNVfP7).
 
 ### [Bugs / Issues](https://github.com/freqtrade/freqtrade/issues?q=is%3Aissue)
 
@@ -289,7 +289,7 @@ This fork by **Pelle Nyberg (Corax CoLAB)** features additional optimization des
 
 ## Edge Hardware Performance Updates (Part 3)
 
-Continuing the effort to push Freqtrade's edge limits for ARM64/NVMe setups, **Pelle Nyberg (Corax CoLAB)** brings the following IoT & infrastructure upgrades:
+Continuing the effort to push Freqtrade - Crypto P Edition's edge limits for ARM64/NVMe setups, **Pelle Nyberg (Corax CoLAB)** brings the following IoT & infrastructure upgrades:
 
 * **SQLite NVMe PRAGMA Optimization**: Dynamically injects `journal_mode=WAL`, `temp_store=MEMORY`, and `synchronous=NORMAL` during SQLAlchemy connections, drastically boosting multi-threaded read/write performance on USB-tethered NVMe drives.
 * **Resumable Hyperopt with NVMe Checkpoints**: Introduced `--resume` to natively store Optuna study states onto SQLite storage. Intensive ML tasks can now survive unexpected power losses or reboots by gracefully resuming from the exact previous epoch.
@@ -313,4 +313,18 @@ To guarantee 24/7 resilience on Edge and local environments, **Pelle Nyberg (Cor
 
 **Developed by:**
 * Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Freqtrade - Crypto P Edition - Crypto P Edition Integrations
+
+This fork has officially been upgraded to **Freqtrade - Crypto P Edition - Crypto P Edition**. It features the following 3rd-party integrations to turn it into a world-class Deep Tech Edge platform:
+
+* **DefiLlama On-Chain Risk Filter**: A globally accessible `OnChainRiskGuard` daemon runs in the background, polling `https://api.llama.fi` asynchronously. Trading strategies can dynamically evaluate Macro TVL liquidity to trigger aggressive capital protection if the on-chain environment drains.
+* **Native Prometheus Metrics Exporter**: Automatically sets up a local HTTP `/metrics` port broadcasting hardware telemetry (RAM/CPU/Temp) and trading states. Designed for immediate local ingestion into Grafana.
+* **Apprise Omni-Notification System**: Extends the default Discord/Telegram limitation. Crypto P Edition natively uses the `apprise` library to push JSON trade events to virtually any messaging pipeline including Signal, Slack, Matrix, or Twilio SMS just by adding a URI.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe) & [https://pellenybe.github.io](https://pellenybe.github.io)
 * Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
