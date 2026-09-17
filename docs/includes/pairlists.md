@@ -556,6 +556,25 @@ To shuffle on every iteration, set `"shuffle_frequency"` to `"iteration"` instea
 !!! Tip
     You may set the `seed` value for this Pairlist to obtain reproducible results, which can be useful for repeated backtesting sessions. If `seed` is not set, the pairs are shuffled in the non-repeatable random order. ShuffleFilter will automatically detect runmodes and apply the `seed` only for backtesting modes - if a `seed` value is set.
 
+#### SpikeFilter
+
+Filters pairs that had an abnormal price spike (pump or dump) recently.
+
+This filter helps in avoiding pairs that recently pumped or dumped aggressively and might be subject to correction, which is typical behavior after a sudden huge change in price.
+
+The `lookback_days` setting determines how many days to check for spikes, and `max_spike_percentage` defines the maximum allowed price change (calculated as high vs low in a single day) as a percentage.
+
+```json
+"pairlists": [
+    {
+        "method": "SpikeFilter",
+        "lookback_days": 3,
+        "max_spike_percentage": 20.0,
+        "refresh_period": 86400
+    }
+]
+```
+
 #### SpreadFilter
 
 Removes pairs that have a difference between asks and bids above the specified ratio, `max_spread_ratio` (defaults to `0.005`).
@@ -588,6 +607,26 @@ Adding `"sort_direction": "asc"` or `"sort_direction": "desc"` enables sorting f
 !!! Tip
     This Filter can be used to automatically remove stable coin pairs, which have a very low trading range, and are therefore extremely difficult to trade with profit.
     Additionally, it can also be used to automatically remove pairs with extreme high/low variance over a given amount of time.
+
+#### TrendFilter
+
+Filters pairs by their recent trend (using Simple Moving Average or Exponential Moving Average).
+
+This filter removes pairs if their trend strength is below the `minimum_trend_strength` percentage. The trend strength is calculated by comparing the current close price to the moving average (SMA or EMA).
+
+```json
+"pairlists": [
+    {
+        "method": "TrendFilter",
+        "lookback_days": 14,
+        "trend_type": "sma",
+        "minimum_trend_strength": 0.0,
+        "refresh_period": 86400
+    }
+]
+```
+
+Adding `"sort_direction": "asc"` or `"sort_direction": "desc"` enables sorting mode for this pairlist.
 
 #### VolatilityFilter
 

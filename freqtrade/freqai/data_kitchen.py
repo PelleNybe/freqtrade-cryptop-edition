@@ -283,7 +283,7 @@ class FreqaiDataKitchen:
             # so now we use do_predict to avoid any prediction based on a NaN
             drop_index = pd.isnull(filtered_df).any(axis=1)
             self.data["filter_drop_index_prediction"] = drop_index
-            filtered_df.fillna(0, inplace=True)
+            filtered_df = filtered_df.fillna(0)
             # replacing all NaNs with zeros to avoid issues in 'prediction', but any prediction
             # that was based on a single NaN is ultimately protected from buys with do_predict
             drop_index = ~drop_index
@@ -449,7 +449,7 @@ class FreqaiDataKitchen:
         cols = ["date"]
         cols.extend(user_cols)
 
-        dataframe_backtest.reset_index(drop=True, inplace=True)
+        dataframe_backtest = dataframe_backtest.reset_index(drop=True)
         merged_df = pd.concat([dataframe_backtest[cols], append_df], axis=1)
         return merged_df
 
