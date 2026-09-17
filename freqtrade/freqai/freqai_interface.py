@@ -218,6 +218,24 @@ class IFreqaiModel(ABC):
         self._threads.append(_thread)
         _thread.start()
 
+    def _check_thermal_throttle(self):
+        """
+        Checks CPU temperature on edge devices (like Raspberry Pi 5).
+        If temp > 75C, sleep to prevent thermal throttling from affecting the trade loop.
+        """
+        try:
+            from pathlib import Path
+            with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
+                temp = float(f.read()) / 1000.0
+                if temp > 75.0:
+                    logger.warning(
+                        f"[THERMAL THROTTLE] CPU at {temp:.1f}C. Pausing FreqAI training for 15s."
+                    )
+                    time.sleep(15)
+        except Exception as e:
+            logger.debug(f"Thermal check failed: {e}")
+
+
     def _start_scanning(self, strategy: IStrategy) -> None:
         """
         Function designed to constantly scan pairs for retraining on a separate thread (intracandle)
@@ -227,6 +245,9 @@ class IFreqaiModel(ABC):
         """
         while not self._stop_event.is_set():
             time.sleep(1)
+
+            # EDGE OPTIMIZATION: Thermal throttling check
+            self._check_thermal_throttle()
 
             if not self.train_queue:
                 continue
@@ -280,7 +301,7 @@ class IFreqaiModel(ABC):
         following the training window). FreqAI slides the window and sequentially builds
         the backtesting results before returning the concatenated results for the full
         backtesting period back to the strategy.
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
         :param strategy: Strategy to train on
@@ -409,7 +430,7 @@ class IFreqaiModel(ABC):
         """
         The main broad execution for dry/live. This function will check if a retraining should be
         performed, and if so, retrain and reset the model.
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param strategy: IStrategy = currently employed strategy
         dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
@@ -511,7 +532,7 @@ class IFreqaiModel(ABC):
 
     def check_if_feature_list_matches_strategy(self, dk: FreqaiDataKitchen) -> None:
         """
-        Ensure user is passing the proper feature set if they are reusing an `identifier` pointing
+        Ensure user is ing the proper feature set if they are reusing an `identifier` pointing
         to a folder holding existing models.
         :param dataframe: DataFrame = strategy provided dataframe
         :param dk: FreqaiDataKitchen = non-persistent data container/analyzer for
@@ -715,7 +736,7 @@ class IFreqaiModel(ABC):
 
     def inference_timer(self, do: Literal["start", "stop"] = "start", pair: str = ""):
         """
-        Timer designed to track the cumulative time spent in FreqAI for one pass through
+        Timer designed to track the cumulative time spent in FreqAI for one  through
         the whitelist. This will check if the time spent is more than 1/4 the time
         of a single candle, and if so, it will warn the user of degraded performance
         """
@@ -933,7 +954,7 @@ class IFreqaiModel(ABC):
         self, dataframe: DataFrame, metadata: dict, dk: FreqaiDataKitchen
     ) -> FreqaiDataKitchen:
         """
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
         :return:
