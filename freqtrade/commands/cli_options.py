@@ -330,6 +330,12 @@ AVAILABLE_CLI_OPTIONS = {
         " Example: --export-csv hyperopt.csv",
         metavar="FILE",
     ),
+    "hyperopt_resume": Arg(
+        "--resume",
+        help="Resume Hyperopt from the last saved checkpoint on NVMe.",
+        action="store_true",
+        default=False,
+    ),
     "hyperopt_jobs": Arg(
         "-j",
         "--job-workers",

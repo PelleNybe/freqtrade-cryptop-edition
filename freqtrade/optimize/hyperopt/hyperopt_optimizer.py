@@ -435,7 +435,24 @@ class HyperOptimizer:
                 self.es_terminator = Terminator(BestValueStagnationEvaluator(self.es_epochs))
 
         logger.info(f"Using optuna sampler {o_sampler}.")
-        return optuna.create_study(sampler=sampler, direction="minimize")
+
+        # EDGE OPTIMIZATION: Checkpoints for Resumable Hyperopt to NVMe
+        if self.config.get("hyperopt_resume", False):
+            storage_path = (
+                Path(self.config.get("user_data_dir", "user_data")) / "hyperopt_checkpoints"
+            )
+            storage_path.mkdir(parents=True, exist_ok=True)
+            db_url = f"sqlite:///{storage_path}/hyperopt_study.sqlite3"
+            logger.info(f"[EDGE OPTIMIZATION] Resuming/Saving Optuna study to NVMe: {db_url}")
+            return optuna.create_study(
+                study_name="freqtrade_hyperopt",
+                storage=db_url,
+                load_if_exists=True,
+                sampler=sampler,
+                direction="minimize",
+            )
+        else:
+            return optuna.create_study(sampler=sampler, direction="minimize")
 
     def advise_and_trim(self, data: dict[str, DataFrame]) -> dict[str, DataFrame]:
         preprocessed = self.backtesting.strategy.advise_all_indicators(data)

@@ -1,6 +1,7 @@
 import logging
 import secrets
 
+from cachetools import TTLCache, cached
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 
@@ -38,6 +39,10 @@ from freqtrade.rpc.api_server.api_schemas import (
 )
 from freqtrade.rpc.api_server.deps import RateLimiter, get_config, get_rpc
 from freqtrade.rpc.rpc import RPCException
+
+
+# EDGE OPTIMIZATION: In-memory TTL cache for high-frequency GET requests
+api_response_cache = TTLCache(maxsize=100, ttl=5)
 
 
 logger = logging.getLogger(__name__)
@@ -201,6 +206,7 @@ def monthly(
     tags=["Trading-info"],
     dependencies=[Depends(RateLimiter(max_calls=20, time_seconds=60))],
 )
+@cached(cache=api_response_cache)
 def status(rpc: RPC = Depends(get_rpc)):
     try:
         return rpc._rpc_trade_status()

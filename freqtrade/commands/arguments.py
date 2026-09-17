@@ -233,6 +233,7 @@ ARGS_HYPEROPT_LIST = [
     "hyperopt_list_no_details",
     "hyperoptexportfilename",
     "export_csv",
+    "hyperopt_resume",
 ]
 
 ARGS_HYPEROPT_SHOW = [

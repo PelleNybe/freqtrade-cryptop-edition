@@ -29,9 +29,34 @@ class ExchangeWS:
         self._klines_scheduled: set[PairWithTimeframe] = set()
         self.klines_last_refresh: dict[PairWithTimeframe, float] = {}
         self.klines_last_request: dict[PairWithTimeframe, float] = {}
+
+        # EDGE OPTIMIZATION: Silent-Disconnect Websocket Watchdog
+        self._last_ws_message_time = time.time()
+        self._watchdog_timeout_ms = 3000
+
         self._thread = Thread(name="ccxt_ws", target=self._start_forever)
         self._thread.start()
         self.__cleanup_called = False
+
+        # Start watchdog task
+        self._watchdog_thread = Thread(name="ws_watchdog", target=self._ws_watchdog, daemon=True)
+        self._watchdog_thread.start()
+
+    def _ws_watchdog(self) -> None:
+        """
+        EDGE OPTIMIZATION: Silent-Disconnect Websocket Watchdog
+        Recycles the websocket connection if no data is received within the timeout.
+        Crucial for mitigating silent stream freezes on Gate.io and KuCoin.
+        """
+        while not self.__cleanup_called:
+            time.sleep(1)
+            elapsed = (time.time() - self._last_ws_message_time) * 1000
+            if elapsed > self._watchdog_timeout_ms and len(self._klines_watching) > 0:
+                logger.warning(
+                    f"[WS WATCHDOG] Stale connection. No data in {elapsed:.0f}ms. Restarting..."
+                )
+                self._last_ws_message_time = time.time()
+                self._reset_ws()
 
     def _start_forever(self) -> None:
         self._loop = asyncio.new_event_loop()
