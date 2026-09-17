@@ -851,6 +851,9 @@ class MarketResponse(BaseModel):
 class SysInfo(BaseModel):
     cpu_pct: list[float]
     ram_pct: float
+    cpu_temp: float | None = None
+    disk_read_bytes: int | None = None
+    disk_write_bytes: int | None = None
 
 
 class Health(BaseModel):

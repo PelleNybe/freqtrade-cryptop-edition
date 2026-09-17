@@ -1744,9 +1744,27 @@ class RPC:
 
     @staticmethod
     def _rpc_sysinfo() -> dict[str, Any]:
+        try:
+            from pathlib import Path
+            with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
+                temp = float(f.read()) / 1000.0
+        except Exception:
+            temp = 0.0
+
+        try:
+            disk_io = psutil.disk_io_counters()
+            disk_read = disk_io.read_bytes
+            disk_write = disk_io.write_bytes
+        except Exception:
+            disk_read = 0
+            disk_write = 0
+
         return {
             "cpu_pct": psutil.cpu_percent(interval=1, percpu=True),
             "ram_pct": psutil.virtual_memory().percent,
+            "cpu_temp": temp,
+            "disk_read_bytes": disk_read,
+            "disk_write_bytes": disk_write,
         }
 
     def health(self) -> dict[str, str | int | None]:

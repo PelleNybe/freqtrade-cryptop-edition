@@ -253,3 +253,64 @@ To run this bot we recommend you a cloud instance with a minimum of:
 - [TA-Lib](https://ta-lib.github.io/ta-lib-python/)
 - [virtualenv](https://virtualenv.pypa.io/en/stable/installation.html) (Recommended)
 - [Docker](https://www.docker.com/products/docker) (Recommended)
+
+---
+
+## Edge Hardware Performance Updates (Crypto P Edition)
+
+This fork by **Pelle Nyberg (Corax CoLAB)** has been significantly optimized for deployment on resource-constrained Edge environments, such as a headless Raspberry Pi 5.
+
+* **Memory-Optimized Data Pipeline**: Aggressive automatic downcasting (float64 -> float32) natively integrated to minimize RAM bloat.
+* **Database I/O Optimization**: Batched SQLAlchemy commit context manager explicitly tailored to reduce NVMe and SD Card wear out during mass ingestions.
+* **Hardware Telemetry via RPC**: Built-in CPU temperature and Disk I/O metrics added directly to the existing JSON API sysinfo endpoints.
+* **JSON Telemetry Structure**: Out-of-the-box support for pure JSON struct logging (`logformat: "json"`), simplifying ingestions into Elasticsearch or Datadog edge agents.
+* **Strategy Profiler Decorator**: Internal `@profile_execution` wrapper across core populate methodologies to identify bottleneck metrics at runtime.
+
+**Developed by:**
+* Pelle Nyberg - [https://pellenybe.github.io](https://pellenybe.github.io)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 2)
+
+This fork by **Pelle Nyberg (Corax CoLAB)** features additional optimization designed for Raspberry Pi 5.
+
+* **Indicator Caching System for Backtesting**: Stores the output of `populate_indicators` (using Parquet) natively to the NVMe drive. Substantially reduces CPU usage on subsequent backtest runs with identical parameters.
+* **Enforced Parquet/Feather Pipeline**: By default, data formatting aggressively enforces `parquet` leveraging `lz4` compression out of the box for the ideal balance between low CPU loads and maximizing USB 3.1 / NVMe bandwidth.
+* **Thermal-Aware FreqAI CPU Training**: Active thermal governor during FreqAI ML background training. Halts processes for 15s immediately if the `/sys/class/thermal/thermal_zone0/temp` exceeds 75°C to strictly prevent systemic thermal throttling, ensuring the active trading loop execution is unhindered.
+* **In-Memory API Response Caching**: Uses a TTLCache on heavy GET endpoints (like `/status` and `/profit`) natively on the server layer. Enables aggressive querying from external monitoring without straining local SQLite I/O limits.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 3)
+
+Continuing the effort to push Freqtrade's edge limits for ARM64/NVMe setups, **Pelle Nyberg (Corax CoLAB)** brings the following IoT & infrastructure upgrades:
+
+* **SQLite NVMe PRAGMA Optimization**: Dynamically injects `journal_mode=WAL`, `temp_store=MEMORY`, and `synchronous=NORMAL` during SQLAlchemy connections, drastically boosting multi-threaded read/write performance on USB-tethered NVMe drives.
+* **Resumable Hyperopt with NVMe Checkpoints**: Introduced `--resume` to natively store Optuna study states onto SQLite storage. Intensive ML tasks can now survive unexpected power losses or reboots by gracefully resuming from the exact previous epoch.
+* **Resilient Websocket & API Backoff**: Integrated exponential backoff with randomized jitter directly into API connection handlers to seamlessly handle spotty IoT / 4G cellular drops without halting the daemon.
+* **Native MQTT Notification Provider**: Configurable direct integration for decentralized IoT networks. Configure the `mqtt` block in your config to instantly stream real-time JSON status updates to local message brokers like Mosquitto.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 4)
+
+To guarantee 24/7 resilience on Edge and local environments, **Pelle Nyberg (Corax CoLAB)** implemented the following rigorous exchange integration safeguards:
+
+* **Dynamic CCXT Rate Limit Manager**: Real-time evaluation of `X-RateLimit-Remaining` headers has been seamlessly woven into the initialization sequence for KuCoin, OKX, and Gate integrations. Drastically reduces the risk of IP bans from high-frequency REST querying.
+* **Exchange-Native Edge-Safe Orders**: Standardizes OCO and Native Trailing Stop logic via CCXT proxying parameters (`stopPrice`, `takeProfitPrice`) for Supported Exchanges. Relocates critical stop-loss execution logic physically to the Exchange's engines to safeguard positions in case the Edge device loses internet connection.
+* **Asynchronous Futures Funding Rate Cache**: Employs a non-blocking daemon thread continuously parsing Mark Prices and Perpetual Futures Funding Rates into a local dictionary cache `_funding_rate_cache`. Allows trading strategies to actively mitigate funding fees without executing blocking HTTP logic.
+* **Silent-Disconnect Websocket Watchdog**: The `_ws_watchdog` forcefully monitors CCXT websocket heartbeats. Recycles unresponsive WebSocket threads natively if no payload is received for more than 3000ms. Prevents KuCoin and Gate from inducing silent pipeline halts.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)

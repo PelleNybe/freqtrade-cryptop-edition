@@ -112,9 +112,14 @@ EXCHANGE_HAS_OPTIONAL_FUTURES: dict[str, list[str]] = {
 
 def calculate_backoff(retrycount, max_retries):
     """
-    Calculate backoff
+    Calculate backoff - EDGE OPTIMIZATION: Exponential backoff with jitter
+    to handle poor 4G/LTE or spotty Wi-Fi networks more gracefully.
     """
-    return (max_retries - retrycount) ** 2 + 1
+    import secrets
+
+    base = 2 ** (max_retries - retrycount)
+    jitter = 0.5 + secrets.SystemRandom().random()
+    return max(1.0, min(base * jitter, 30.0))
 
 
 def retrier_async(f):
