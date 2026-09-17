@@ -299,3 +299,18 @@ Continuing the effort to push Freqtrade's edge limits for ARM64/NVMe setups, **P
 **Developed by:**
 * Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
 * Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
+
+---
+
+## Edge Hardware Performance Updates (Part 4)
+
+To guarantee 24/7 resilience on Edge and local environments, **Pelle Nyberg (Corax CoLAB)** implemented the following rigorous exchange integration safeguards:
+
+* **Dynamic CCXT Rate Limit Manager**: Real-time evaluation of `X-RateLimit-Remaining` headers has been seamlessly woven into the initialization sequence for KuCoin, OKX, and Gate integrations. Drastically reduces the risk of IP bans from high-frequency REST querying.
+* **Exchange-Native Edge-Safe Orders**: Standardizes OCO and Native Trailing Stop logic via CCXT proxying parameters (`stopPrice`, `takeProfitPrice`) for Supported Exchanges. Relocates critical stop-loss execution logic physically to the Exchange's engines to safeguard positions in case the Edge device loses internet connection.
+* **Asynchronous Futures Funding Rate Cache**: Employs a non-blocking daemon thread continuously parsing Mark Prices and Perpetual Futures Funding Rates into a local dictionary cache `_funding_rate_cache`. Allows trading strategies to actively mitigate funding fees without executing blocking HTTP logic.
+* **Silent-Disconnect Websocket Watchdog**: The `_ws_watchdog` forcefully monitors CCXT websocket heartbeats. Recycles unresponsive WebSocket threads natively if no payload is received for more than 3000ms. Prevents KuCoin and Gate from inducing silent pipeline halts.
+
+**Developed by:**
+* Pelle Nyberg - [https://github.com/PelleNybe](https://github.com/PelleNybe)
+* Corax CoLAB - [https://coraxcolab.com](https://coraxcolab.com)
