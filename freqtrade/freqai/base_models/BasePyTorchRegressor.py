@@ -107,6 +107,12 @@ class BasePyTorchRegressor(BasePyTorchModel):
         logger.info(f"Training model on {len(dd['train_features'])} data points")
 
         model = self.fit(dd, dk)
+
+        # Apply federated averaging and publish weights
+        if getattr(self, "federated_daemon", None) and self.federated_daemon.enabled and hasattr(model, "model"):
+            self.federated_daemon.apply_fedavg(model.model)
+            self.federated_daemon.publish_weights(model.model, getattr(self, "node_id", "node"))
+
         end_time = time()
 
         logger.info(
