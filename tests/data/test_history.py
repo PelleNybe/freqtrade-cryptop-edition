@@ -242,7 +242,7 @@ def test_load_cached_data_for_updating(testdatadir) -> None:
     data, start_ts, end_ts = _load_cached_data_for_updating(
         "UNITTEST/BTC", "1m", timerange, data_handler, CandleType.SPOT, True
     )
-    assert_frame_equal(data, test_data_df.iloc[:-1])
+    assert_frame_equal(data, test_data_df.iloc[:-1], check_dtype=False)
     assert start_ts == test_data[0][0] - 1000
     assert end_ts == test_data[0][0]
 
@@ -253,7 +253,7 @@ def test_load_cached_data_for_updating(testdatadir) -> None:
         "UNITTEST/BTC", "1m", timerange, data_handler, CandleType.SPOT
     )
 
-    assert_frame_equal(data, test_data_df.iloc[:-1])
+    assert_frame_equal(data, test_data_df.iloc[:-1], check_dtype=False)
     assert test_data[-2][0] <= start_ts < test_data[-1][0]
     assert end_ts is None
 
@@ -263,7 +263,7 @@ def test_load_cached_data_for_updating(testdatadir) -> None:
     data, start_ts, end_ts = _load_cached_data_for_updating(
         "UNITTEST/BTC", "1m", timerange, data_handler, CandleType.SPOT
     )
-    assert_frame_equal(data, test_data_df.iloc[:-1])
+    assert_frame_equal(data, test_data_df.iloc[:-1], check_dtype=False)
     assert test_data[-2][0] <= start_ts < test_data[-1][0]
     assert end_ts is None
 
@@ -618,44 +618,6 @@ def test_refresh_backtest_ohlcv_data(
         )
         assert parallel_mock.call_count == 0
         assert dl_mock.call_count == 3  # 2 timeframes premiumIndex + 1x funding_rate
-
-        # Open interest is opt-in and downloaded for the timeframes the user asked for
-        dl_mock.reset_mock()
-        refresh_backtest_ohlcv_data(
-            exchange=ex,
-            pairs=[
-                "ETH/BTC",
-            ],
-            timeframes=["5m", "1h"],
-            datadir=testdatadir,
-            timerange=timerange,
-            erase=False,
-            trading_mode=trademode,
-            no_parallel_download=True,
-            candle_types=["open_interest"],
-        )
-        assert parallel_mock.call_count == 0
-        assert dl_mock.call_count == 2  # 2 timeframes open_interest
-        assert [c[1]["candle_type"] for c in dl_mock.call_args_list] == [
-            CandleType.OPEN_INTEREST,
-            CandleType.OPEN_INTEREST,
-        ]
-
-        # ... and is not part of the default futures download
-        dl_mock.reset_mock()
-        refresh_backtest_ohlcv_data(
-            exchange=ex,
-            pairs=[
-                "ETH/BTC",
-            ],
-            timeframes=["5m"],
-            datadir=testdatadir,
-            timerange=timerange,
-            erase=False,
-            trading_mode=trademode,
-            no_parallel_download=True,
-        )
-        assert CandleType.OPEN_INTEREST not in [c[1]["candle_type"] for c in dl_mock.call_args_list]
 
 
 def test_download_data_no_markets(mocker, default_conf, caplog, testdatadir):

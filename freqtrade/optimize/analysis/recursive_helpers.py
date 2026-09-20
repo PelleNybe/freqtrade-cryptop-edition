@@ -7,7 +7,7 @@ from freqtrade.constants import Config
 from freqtrade.exceptions import OperationalException
 from freqtrade.optimize.analysis.recursive import RecursiveAnalysis
 from freqtrade.resolvers import StrategyResolver
-from freqtrade.util import CustomProgress, get_progress_tracker, print_rich_table
+from freqtrade.util import print_rich_table
 
 
 logger = logging.getLogger(__name__)
@@ -31,10 +31,7 @@ class RecursiveAnalysisSubFunctions:
                 for indicator, values in inst.dict_recursive.items():
                     temp_data = [indicator]
                     for candle in startups:
-                        if (value := values.get(candle)) is not None:
-                            temp_data.append(f"{value:.3%}")
-                        else:
-                            temp_data.append("-")
+                        temp_data.append(values.get(int(candle), "-"))
                     data.append(temp_data)
 
         if len(data) > 0:
@@ -66,13 +63,11 @@ class RecursiveAnalysisSubFunctions:
         return config
 
     @staticmethod
-    def initialize_single_recursive_analysis(
-        config: Config, strategy_obj: dict[str, Any], progress: CustomProgress
-    ):
+    def initialize_single_recursive_analysis(config: Config, strategy_obj: dict[str, Any]):
         logger.info(f"Recursive test of {Path(strategy_obj['location']).name} started.")
         start = time.perf_counter()
         current_instance = RecursiveAnalysis(config, strategy_obj)
-        current_instance.start(progress)
+        current_instance.start()
         elapsed = time.perf_counter() - start
         logger.info(
             f"Checking recursive and indicator-only lookahead bias of indicators "
@@ -100,25 +95,15 @@ class RecursiveAnalysisSubFunctions:
             strategy_list = [config["strategy"]]
 
         # check if strategies can be properly loaded, only check them if they can be.
-        with get_progress_tracker() as progress:
-            strategy_task = (
-                progress.add_task("Recursive analysis", total=len(strategy_list))
-                if len(strategy_list) > 1
-                else None
-            )
-            for strat in strategy_list:
-                for strategy_obj in strategy_objs:
-                    if strategy_obj["name"] == strat and strategy_obj not in strategy_list:
-                        if strategy_task is not None:
-                            progress.update(strategy_task, description=f"Analyzing {strat}")
-                        RecursiveAnalysis_instances.append(
-                            RecursiveAnalysisSubFunctions.initialize_single_recursive_analysis(
-                                config, strategy_obj, progress
-                            )
+        for strat in strategy_list:
+            for strategy_obj in strategy_objs:
+                if strategy_obj["name"] == strat and strategy_obj not in strategy_list:
+                    RecursiveAnalysis_instances.append(
+                        RecursiveAnalysisSubFunctions.initialize_single_recursive_analysis(
+                            config, strategy_obj
                         )
-                        break
-                if strategy_task is not None:
-                    progress.update(strategy_task, advance=1)
+                    )
+                    break
 
         # report the results
         if RecursiveAnalysis_instances:

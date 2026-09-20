@@ -3,29 +3,771 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Freqtrade UI</title>
+  <meta name="description" content="Freqtrade - Crypto P Edition. Install the UI to access the dashboard.">
+  <meta property="og:title" content="Freqtrade - Crypto P Edition">
+  <meta property="og:description" content="Install the UI to access the dashboard.">
+  <meta property="og:image" content="/logo.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Freqtrade - Crypto P Edition">
+  <meta name="twitter:description" content="Install the UI to access the dashboard.">
+  <meta name="twitter:image" content="/logo.png">
+
+  <title>Freqtrade - Crypto P Edition</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
-    body {
-      background-color: #3c3c3c;
-      color: #dedede;
-      text-align: center;
+    :root {
+      --bg-base: #050510;
+      --bg-glass: rgba(20, 15, 35, 0.6);
+      --bg-glass-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f0f0f5;
+      --text-muted: #94a3b8;
+      --accent-1: #ff2a85; /* Vibrant pink */
+      --accent-2: #00f0ff; /* Electric cyan */
+      --accent-3: #8a2be2; /* Deep purple */
+      --success: #10b981;
+      --error: #ef4444;
+      --gradient-primary: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+      --gradient-secondary: linear-gradient(135deg, var(--accent-2), var(--accent-3));
     }
-    .main-container {
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 15% 50%, rgba(255, 42, 133, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(0, 240, 255, 0.08) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+      min-height: 100vh;
       display: flex;
-      align-items: center;
-      justify-content: center;
       flex-direction: column;
     }
-    h1 {
-      margin-top: 10rem;
+
+    /* Glassmorphism utility */
+    .glass {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-glass-border);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
     }
+
+    header {
+      padding: 1.5rem 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--bg-glass-border);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .logo-container {
+      position: relative;
+    }
+
+    .logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: var(--gradient-primary) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: destination-out;
+      mask-composite: exclude;
+      padding: 2px;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .logo-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .logo-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .logo-btn:hover .logo {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .logo.spinning {
+        animation: spin-pulse 1s ease-in-out;
+    }
+
+    @keyframes spin-pulse {
+        0% { transform: scale(1) rotate(0); }
+        50% { transform: scale(1.2) rotate(180deg); }
+        100% { transform: scale(1) rotate(360deg); }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 0;
+      background: var(--gradient-secondary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .status-dot.inactive {
+      background-color: var(--error);
+      box-shadow: 0 0 8px var(--error);
+      animation: none;
+    }
+
+    .status-badge .separator {
+      color: var(--text-muted);
+      margin: 0 4px;
+    }
+
+    .status-text.inactive {
+      color: var(--error);
+    }
+
+    @keyframes pulse-dot {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    nav { display: flex; gap: 1.5rem; }
+
+    nav a {
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    nav a:hover {
+      color: var(--accent-2);
+    }
+
+    .external-icon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+      opacity: 0.7;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 4rem;
+      max-width: 800px;
+    }
+
+    .hero h2 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin: 0 0 1rem 0;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      width: 100%;
+    }
+
+    @media (max-width: 850px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+      .hero h2 { font-size: 2.5rem; }
+    }
+
+    .card {
+      padding: 2.5rem;
+      border-radius: 24px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: var(--gradient-primary);
+      opacity: 0.5;
+    }
+
+    .card.alt::before { background: var(--gradient-secondary); }
+
+    .card h3 {
+      font-size: 1.5rem;
+      margin: 0 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card p {
+      color: var(--text-muted);
+      margin: 0 0 1.5rem 0;
+    }
+
+    /* Terminal UI */
+    .terminal-section {
+      grid-column: 1 / -1;
+      margin-top: 1rem;
+    }
+
+    .terminal {
+      background: #0a0a16;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .terminal-header {
+      background: #151525;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .td-red { background: #ff5f56; }
+    .td-yellow { background: #ffbd2e; }
+    .td-green { background: #27c93f; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+
+    .terminal-body {
+      padding: 2rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .command-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .command-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .command-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      padding: 0.5rem 0.5rem 0.5rem 1rem;
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.2s;
+    }
+
+    .command-line:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.1);
+    }
+
+    .command-text {
+      color: var(--accent-2);
+      font-size: 1.1rem;
+      user-select: all;
+    }
+
+    .command-text::before {
+      content: '$ ';
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .copy-btn {
+      background: var(--bg-glass);
+      border: 1px solid var(--bg-glass-border);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.1);
+      transform: translateY(-1px);
+    }
+
+    .copy-btn.copied {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .action-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 3rem;
+      gap: 1rem;
+    }
+
+    .btn-primary {
+      background: var(--gradient-primary);
+      color: white;
+      border: none;
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      border-radius: 50px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 10px 20px rgba(255, 42, 133, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 15px 25px rgba(255, 42, 133, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary.loading {
+      opacity: 0.8;
+      pointer-events: none;
+      transform: none;
+    }
+
+    .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+    }
+
+    .btn-primary.loading .spinner { display: block; }
+    .btn-primary.loading .icon { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .magic-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .magic-text { animation: pulse-opacity 2s infinite; }
+    }
+
+    @keyframes pulse-opacity {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--bg-glass-border);
+      margin-top: auto;
+      font-size: 0.9rem;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-glass-border);
+      color: var(--text-main);
+      padding: 12px 24px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--error); }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; transform: translateY(-10px); }
+    }
+
+    /* Confetti */
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      z-index: 9999;
+      pointer-events: none;
+      animation: confetti-fall linear forwards;
+    }
+
+    @keyframes confetti-fall {
+      to { transform: translateY(100vh) rotate(720deg); }
+    }
+
+    .noscr {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--error);
+      color: var(--text-main);
+      padding: 1rem;
+      text-align: center;
+      font-weight: bold;
+    }
+
   </style>
 </head>
 <body>
-  <div class="main-container">
-    <h1>Freqtrade UI not installed.</h1>
-    <p>Please run `freqtrade install-ui` in your terminal to install the UI files and restart your bot.</p>
-    <p>You can then refresh this page and you should see the UI.</p>
-  </div>
+  <noscript>
+    <div class="noscr" role="alert">
+      ⚠️ JavaScript Required: Please enable JavaScript to copy commands and access the dashboard.
+    </div>
+  </noscript>
+
+  <header class="glass">
+    <div class="header-left">
+      <div class="logo-container">
+        <button class="logo-btn" id="logo-btn" aria-label="Spin logo">
+          <div class="logo"><img src="/logo.png" alt="Crypto P Logo" class="logo-img"></div>
+        </button>
+      </div>
+      <div>
+        <h1>Freqtrade</h1>
+        <div style="font-size: 0.8rem; color: var(--accent-1); font-weight: 600; letter-spacing: 1px;">CRYPTO P EDITION</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2rem;">
+      <div class="status-badge glass" role="status" aria-label="System Status">
+        <span class="status-dot"></span> Server Online
+        <span class="separator">|</span>
+        <span class="status-dot inactive" id="ui-status-dot"></span> <span class="status-text inactive" id="ui-status-text">UI Missing</span>
+      </div>
+      <nav>
+        <a href="https://www.freqtrade.io/en/latest/" target="_blank" rel="noopener">Docs <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
+        <a href="https://github.com/freqtrade/freqtrade" target="_blank" rel="noopener">GitHub <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h2>Welcome to the Magical Server ✨</h2>
+      <p>Your portal to advanced crypto trading, optimized by Crypto P. Unleash the power of automated strategies and real-time insights.</p>
+    </div>
+
+    <div class="grid-container">
+      <div class="card glass">
+        <h3>🎩 Meet Crypto P</h3>
+        <p>The eccentric mastermind behind this elevated edition! With high energy and a passion for innovation, Crypto P builds advanced tools, exclusive pairlists, and dynamic protections to give you the edge in the crypto markets.</p>
+        <ul style="color: var(--text-muted); padding-left: 1.2rem; margin: 0; line-height: 1.8;">
+          <li>Exclusive TrendFilter & SpikeFilter</li>
+          <li>Advanced Guard Protections</li>
+          <li>Cross Margin & Hyperliquid Support</li>
+        </ul>
+      </div>
+
+      <div class="card glass alt">
+        <h3>🚀 Unlock the Dashboard</h3>
+        <p>The UI module is currently pending installation. Once deployed, you'll gain access to beautiful live charts, detailed performance metrics, and complete bot management.</p>
+        <div style="margin-top: auto; padding: 1rem; background: rgba(0,240,255,0.05); border-radius: 12px; border: 1px dashed var(--accent-2);">
+          <span style="display:block; color:var(--accent-2); font-weight:700; margin-bottom:5px;">System Ready</span>
+          <span style="font-size:0.9rem; color:var(--text-muted);">Awaiting frontend assets compilation and deployment.</span>
+        </div>
+      </div>
+
+      <div class="terminal-section">
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <div class="terminal-dot td-red"></div>
+              <div class="terminal-dot td-yellow"></div>
+              <div class="terminal-dot td-green"></div>
+            </div>
+            <div class="terminal-title">bash - freqtrade</div>
+          </div>
+          <div class="terminal-body">
+
+            <div class="command-group">
+              <span class="command-label">Standard Installation (Native/Venv)</span>
+              <div class="command-line">
+                <code class="command-text" id="cmd-native">freqtrade install-ui</code>
+                <button class="copy-btn" onclick="copyCmd('cmd-native', this)">
+                  <span class="icon">📋</span> Copy
+                </button>
+              </div>
+            </div>
+
+            <div class="command-group" style="margin-bottom:0;">
+              <span class="command-label">Docker Deployment</span>
+              <div class="command-line">
+                <code class="command-text" id="cmd-docker">docker compose run --rm freqtrade install-ui</code>
+                <button class="copy-btn" onclick="copyCmd('cmd-docker', this)">
+                  <span class="icon">📋</span> Copy
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-area">
+      <button class="btn-primary" id="refresh-btn">
+        <span class="spinner"></span>
+        <span class="icon">🔄</span>
+        <span class="text">Launch Dashboard</span>
+      </button>
+      <div class="magic-text">
+        <span>✨</span> Scanning for UI installation in background...
+      </div>
+    </div>
+  </main>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <footer>
+    <p>&copy; 2026 Freqtrade - Crypto P Edition. A Corax Colab Initiative.</p>
+  </footer>
+
+  <script>
+    document.getElementById('logo-btn').addEventListener('click', function() {
+      const el = this.querySelector('.logo');
+      el.classList.remove('spinning');
+      void el.offsetWidth;
+      el.classList.add('spinning');
+    });
+
+    function showToast(msg, type='success') {
+      const container = document.getElementById('toast-container');
+      if (container.children.length >= 3) container.firstChild.remove();
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> ${msg}`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        toast.addEventListener('animationend', () => toast.remove());
+      }, 3000);
+    }
+
+    function copyCmd(id, btn) {
+      const text = document.getElementById(id).innerText;
+      const originalText = btn.innerHTML;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => success()).catch(() => error());
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy') ? success() : error();
+        } catch(e) { error(); }
+        document.body.removeChild(ta);
+      }
+
+      function success() {
+        btn.classList.add('copied');
+        btn.innerHTML = '<span>✅</span> Copied';
+        showToast('Command copied to clipboard!');
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = originalText;
+        }, 2000);
+      }
+      function error() { showToast('Copy failed!', 'error'); }
+    }
+
+    function fireConfetti() {
+      const colors = ['#ff2a85', '#00f0ff', '#8a2be2', '#ffffff'];
+      for (let i = 0; i < 60; i++) {
+        const conf = document.createElement('div');
+        conf.className = 'confetti';
+        conf.style.left = Math.random() * 100 + 'vw';
+        conf.style.top = '-10px';
+        conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        document.body.appendChild(conf);
+        setTimeout(() => conf.remove(), 4000);
+      }
+    }
+
+    async function checkStatus(isManual = false) {
+      const btn = document.getElementById('refresh-btn');
+      if(isManual) btn.classList.add('loading');
+
+      try {
+        const res = await fetch('/ui_version');
+        const data = await res.json();
+
+        if (data.version && data.version !== 'not_installed') {
+          // Update status badge immediately
+          document.getElementById('ui-status-dot').classList.remove('inactive');
+          const txt = document.getElementById('ui-status-text');
+          txt.classList.remove('inactive');
+          txt.innerText = 'UI Installed';
+
+          if(isManual) {
+             fireConfetti();
+             showToast('UI Detected! Launching...', 'success');
+             setTimeout(() => location.reload(), 1500);
+          }
+          return true; // Installed
+        } else {
+          if(isManual) {
+            showToast('UI not found. Please run the install command.', 'error');
+            setTimeout(() => btn.classList.remove('loading'), 1000);
+          }
+          return false;
+        }
+      } catch (e) {
+        if(isManual) location.reload();
+        return false;
+      }
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', () => checkStatus(true));
+
+    let checkInterval = setInterval(async () => {
+      const installed = await checkStatus();
+      if (installed) {
+        clearInterval(checkInterval);
+        fireConfetti();
+        showToast('UI Installed Automatically! Redirecting...', 'success');
+        setTimeout(() => location.reload(), 2000);
+      }
+    }, 5000);
+  </script>
 </body>
 </html>

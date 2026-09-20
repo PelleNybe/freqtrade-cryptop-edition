@@ -1,4 +1,5 @@
 import logging
+import time
 from copy import deepcopy
 
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -9,9 +10,9 @@ from freqtrade.exceptions import OperationalException
 from freqtrade.persistence import FtNoDBContext
 from freqtrade.rpc.api_server.api_pairlists import handleExchangePayload
 from freqtrade.rpc.api_server.api_schemas import BgJobStarted, DownloadDataPayload
-from freqtrade.rpc.api_server.deps import get_config, get_exchange
+from freqtrade.rpc.api_server.deps import RateLimiter, get_config, get_exchange
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
-from freqtrade.util import get_progress_tracker
+from freqtrade.util.progress_tracker import get_progress_tracker
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ def __run_download(job_id: str, config_loc: Config):
 
         with FtNoDBContext():
             exchange = get_exchange(config_loc)
+            last_refresh = [0.0]
 
             def ft_callback(task) -> None:
                 ApiBG.jobs[job_id]["progress_tasks"][str(task.id)] = {
@@ -34,6 +36,10 @@ def __run_download(job_id: str, config_loc: Config):
                     "total": task.total,
                     "description": task.description,
                 }
+                if time.time() - last_refresh[0] > 60:
+                    if job := ApiBG.jobs.get(job_id):
+                        ApiBG.jobs[job_id] = job
+                        last_refresh[0] = time.time()
 
             pt = get_progress_tracker(ft_callback=ft_callback)
 
@@ -44,11 +50,17 @@ def __run_download(job_id: str, config_loc: Config):
         ApiBG.jobs[job_id]["error"] = str(e)
         ApiBG.jobs[job_id]["status"] = "failed"
     finally:
-        ApiBG.jobs[job_id]["is_running"] = False
+        if job := ApiBG.jobs.get(job_id):
+            job["is_running"] = False
+            ApiBG.jobs[job_id] = job
         ApiBG.download_data_running = False
 
 
-@router.post("/download_data", response_model=BgJobStarted)
+@router.post(
+    "/download_data",
+    response_model=BgJobStarted,
+    dependencies=[Depends(RateLimiter(max_calls=2, time_seconds=600))],
+)
 def pairlists_evaluate(
     payload: DownloadDataPayload, background_tasks: BackgroundTasks, config=Depends(get_config)
 ):

@@ -37,9 +37,12 @@ def start_list_exchanges(args: dict[str, Any]) -> None:
             )
         else:
             available_exchanges = [e for e in available_exchanges if e["valid"] is not False]
-            title = f"Exchanges available for Freqtrade ({len(available_exchanges)} exchanges):"
+            title = (
+                f"Exchanges available for Freqtrade - Crypto P Edition "
+                f"({len(available_exchanges)} exchanges):"
+            )
         show_fut_reasons = args.get("list_exchanges_futures_options", False)
-        table = Table(title=title)
+        table = Table(title=title, row_styles=["", "dim"])
 
         table.add_column("Exchange Name")
         table.add_column("Class Name")
@@ -62,7 +65,7 @@ def start_list_exchanges(args: dict[str, Any]) -> None:
                 continue
             name = Text(exchange["name"])
             if exchange["supported"]:
-                name.append(" (Supported)", style="italic")
+                name.append(" ✅", style="italic")
                 name.stylize("green bold")
             classname = Text(exchange["classname"])
             if exchange["is_alias"]:
@@ -134,13 +137,13 @@ def _print_objs_tabular(objs: list, print_colorized: bool) -> None:
                     "custom-Params": ", ".join(custom_params) if custom_params else "",
                 }
             )
-    table = Table()
+    table = Table(row_styles=["", "dim"])
 
-    for header in objs_to_print[0]:
+    for header in objs_to_print[0].keys():
         table.add_column(header.capitalize(), justify="right")
 
     for row in objs_to_print:
-        table.add_row(*[row[header] for header in objs_to_print[0]])
+        table.add_row(*[row[header] for header in objs_to_print[0].keys()])
 
     console = get_rich_console(color_system="auto" if print_colorized else None)
     console.print(table)
@@ -393,7 +396,7 @@ def start_show_trades(args: dict[str, Any]) -> None:
     tfilter = []
 
     if config.get("trade_ids"):
-        tfilter.append(Trade.id.in_(int(tid) for tid in config["trade_ids"]))
+        tfilter.append(Trade.id.in_(config["trade_ids"]))
 
     trades = Trade.get_trades(tfilter).all()
     logger.info(f"Printing {len(trades)} Trades: ")

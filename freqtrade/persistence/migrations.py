@@ -30,43 +30,25 @@ def get_backup_name(tabs: list[str], backup_prefix: str):
     return table_back_name
 
 
-def get_last_sequence_ids(engine, sequence_name: str, table_back_name: str) -> int | None:
-    last_id: int | None = None
+def get_last_sequence_ids(engine, trade_back_name: str, order_back_name: str):
+    order_id: int | None = None
+    trade_id: int | None = None
 
     if engine.name == "postgresql":
         with engine.begin() as connection:
-            last_id = connection.execute(
-                text(f"""select nextval('"{sequence_name}"')""")
-            ).fetchone()[0]
+            trade_id = connection.execute(text("select nextval('trades_id_seq')")).fetchone()[0]
+            order_id = connection.execute(text("select nextval('orders_id_seq')")).fetchone()[0]
         with engine.begin() as connection:
             connection.execute(
-                text(f'ALTER SEQUENCE "{sequence_name}" rename to "{table_back_name}_id_seq_bak"')
+                text(f"ALTER SEQUENCE orders_id_seq rename to {order_back_name}_id_seq_bak")
             )
+            connection.execute(
+                text(f"ALTER SEQUENCE trades_id_seq rename to {trade_back_name}_id_seq_bak")
+            )
+    return order_id, trade_id
 
-    return last_id
 
-
-def set_sequence_ids(
-    engine,
-    order_id: int | None = None,
-    trade_id: int | None = None,
-    pairlock_id: int | None = None,
-    kv_id: int | None = None,
-    custom_data_id: int | None = None,
-    wallet_history_id: int | None = None,
-):
-    """
-    Set sequence ids to the given values.
-    The id's given should be the next id to use, so the current max id + 1 - or current id
-    if using nextval before migration.
-    :param engine: SQLAlchemy engine
-    :param order_id: value to set for orders_id_seq (optional)
-    :param trade_id: value to set for trades_id_seq (optional)
-    :param pairlock_id: value to set for pairlocks_id_seq (optional)
-    :param kv_id: value to set for KeyValueStore_id_seq (optional)
-    :param custom_data_id: value to set for trade_custom_data_id_seq (optional)
-    :param wallet_history_id: value to set for wallet_history_id_seq (optional)
-    """
+def set_sequence_ids(engine, order_id, trade_id, pairlock_id=None):
     if engine.name == "postgresql":
         with engine.begin() as connection:
             if order_id:
@@ -77,18 +59,6 @@ def set_sequence_ids(
                 connection.execute(
                     text(f"ALTER SEQUENCE pairlocks_id_seq RESTART WITH {pairlock_id}")
                 )
-            if kv_id:
-                connection.execute(
-                    text(f'ALTER SEQUENCE "KeyValueStore_id_seq" RESTART WITH {kv_id}')
-                )
-            if custom_data_id:
-                connection.execute(
-                    text(f"ALTER SEQUENCE trade_custom_data_id_seq RESTART WITH {custom_data_id}")
-                )
-            if wallet_history_id:
-                connection.execute(
-                    text(f"ALTER SEQUENCE wallet_history_id_seq RESTART WITH {wallet_history_id}")
-                )
 
 
 def drop_index_on_table(engine, inspector, table_bak_name):
@@ -96,9 +66,9 @@ def drop_index_on_table(engine, inspector, table_bak_name):
         # drop indexes on backup table in new session
         for index in inspector.get_indexes(table_bak_name):
             if engine.name == "mysql":
-                connection.execute(text(f'drop index "{index["name"]}" on {table_bak_name}'))
+                connection.execute(text(f"drop index {index['name']} on {table_bak_name}"))
             else:
-                connection.execute(text(f'drop index "{index["name"]}"'))
+                connection.execute(text(f"drop index {index['name']}"))
 
 
 def migrate_trades_and_orders_table(
@@ -187,8 +157,7 @@ def migrate_trades_and_orders_table(
 
     drop_index_on_table(engine, inspector, trade_back_name)
 
-    order_id = get_last_sequence_ids(engine, "order_id_seq", order_back_name)
-    trade_id = get_last_sequence_ids(engine, "trades_id_seq", trade_back_name)
+    order_id, trade_id = get_last_sequence_ids(engine, trade_back_name, order_back_name)
 
     drop_orders_table(engine, order_back_name)
 
@@ -300,7 +269,6 @@ def migrate_pairlocks_table(decl_base, inspector, engine, pairlock_back_name: st
         connection.execute(text(f"alter table pairlocks rename to {pairlock_back_name}"))
 
     drop_index_on_table(engine, inspector, pairlock_back_name)
-    pairlock_id = get_last_sequence_ids(engine, "pairlocks_id_seq", pairlock_back_name)
 
     side = get_column_def(cols, "side", "'*'")
 
@@ -319,33 +287,6 @@ def migrate_pairlocks_table(decl_base, inspector, engine, pairlock_back_name: st
         """
             )
         )
-
-    set_sequence_ids(engine, pairlock_id=pairlock_id)
-
-
-def migrate_kv_store_table(decl_base, inspector, engine, kv_store_back_name: str, cols: list):
-    # Schema migration necessary
-    with engine.begin() as connection:
-        connection.execute(text(f'alter table "KeyValueStore" rename to "{kv_store_back_name}"'))
-
-    drop_index_on_table(engine, inspector, kv_store_back_name)
-    kv_store_id = get_last_sequence_ids(engine, "KeyValueStore_id_seq", kv_store_back_name)
-
-    # let SQLAlchemy create the schema as required
-    decl_base.metadata.create_all(engine)
-    # Copy data back - following the correct schema
-    with engine.begin() as connection:
-        connection.execute(
-            text(
-                f"""insert into "KeyValueStore"
-        (id, key, value_type, string_value, datetime_value, float_value, int_value)
-        select id, key, value_type, string_value, datetime_value, float_value, int_value
-        from "{kv_store_back_name}"
-        """
-            )
-        )
-
-    set_sequence_ids(engine, kv_id=kv_store_id)
 
 
 def set_sqlite_to_wal(engine):
@@ -418,15 +359,12 @@ def check_migrate(engine: Engine, decl_base, previous_tables: list[str]) -> None
     cols_trades = inspector.get_columns("trades")
     cols_orders = inspector.get_columns("orders")
     cols_pairlocks = inspector.get_columns("pairlocks")
-    cols_kv_store = inspector.get_columns("KeyValueStore")
     tabs = get_table_names_for_table(inspector, "trades")
     table_back_name = get_backup_name(tabs, "trades_bak")
     order_tabs = get_table_names_for_table(inspector, "orders")
     order_table_bak_name = get_backup_name(order_tabs, "orders_bak")
     pairlock_tabs = get_table_names_for_table(inspector, "pairlocks")
     pairlock_table_bak_name = get_backup_name(pairlock_tabs, "pairlocks_bak")
-    kv_store_tabs = get_table_names_for_table(inspector, "KeyValueStore")
-    kv_store_back_name = get_backup_name(kv_store_tabs, "KeyValueStore_bak")
 
     # Check if migration necessary
     # Migrates both trades and orders table!
@@ -457,16 +395,6 @@ def check_migrate(engine: Engine, decl_base, previous_tables: list[str]) -> None
         migrate_pairlocks_table(
             decl_base, inspector, engine, pairlock_table_bak_name, cols_pairlocks
         )
-    if "KeyValueStore" in previous_tables:
-        key_column = next(filter(lambda x: x["name"] == "key", cols_kv_store), None)
-        # length of key column < 50, recreate table with correct length and migrate data
-        if key_column and getattr(key_column["type"], "length", -1) < 50:
-            migrating = True
-            logger.info(
-                f"Running database migration for KeyValueStore - backup: {kv_store_back_name}"
-            )
-            migrate_kv_store_table(decl_base, inspector, engine, kv_store_back_name, cols_kv_store)
-
     if "orders" not in previous_tables and "trades" in previous_tables:
         raise OperationalException(
             "Your database seems to be very old. "

@@ -11,9 +11,9 @@ from multiprocessing import Manager
 from pathlib import Path
 from typing import Any
 
-import cloudpickle
 import optuna
 from joblib import delayed, dump, load, wrap_non_picklable_objects
+from joblib.externals import cloudpickle
 from optuna.exceptions import ExperimentalWarning
 from optuna.terminator import BestValueStagnationEvaluator, Terminator
 from pandas import DataFrame
@@ -162,7 +162,7 @@ class HyperOptimizer:
         """
         result: dict = {}
 
-        for space in self.spaces:
+        for space in self.spaces.keys():
             if space == "protection":
                 result["protection"] = round_dict(
                     {p.name: params.get(p.name) for p in self.spaces[space]}, 13
@@ -313,7 +313,7 @@ class HyperOptimizer:
             self.backtesting.strategy.max_open_trades = updated_max_open_trades
 
         with self.data_pickle_file.open("rb") as f:
-            processed = load(f)  # Intentionally not using mmap mode (fd exhaustion)
+            processed = load(f, mmap_mode="r")
         if self.analyze_per_epoch:
             # Data is not yet analyzed, rerun populate_indicators.
             processed = self.advise_and_trim(processed)
@@ -412,7 +412,7 @@ class HyperOptimizer:
         )
 
         if isinstance(o_sampler, str):
-            if o_sampler not in optuna_samplers_dict:
+            if o_sampler not in optuna_samplers_dict.keys():
                 raise OperationalException(f"Optuna Sampler {o_sampler} not supported.")
             with warnings.catch_warnings():
                 warnings.filterwarnings(action="ignore", category=ExperimentalWarning)
@@ -435,7 +435,24 @@ class HyperOptimizer:
                 self.es_terminator = Terminator(BestValueStagnationEvaluator(self.es_epochs))
 
         logger.info(f"Using optuna sampler {o_sampler}.")
-        return optuna.create_study(sampler=sampler, direction="minimize")
+
+        # EDGE OPTIMIZATION: Checkpoints for Resumable Hyperopt to NVMe
+        if self.config.get("hyperopt_resume", False):
+            storage_path = (
+                Path(self.config.get("user_data_dir", "user_data")) / "hyperopt_checkpoints"
+            )
+            storage_path.mkdir(parents=True, exist_ok=True)
+            db_url = f"sqlite:///{storage_path}/hyperopt_study.sqlite3"
+            logger.info(f"[EDGE OPTIMIZATION] Resuming/Saving Optuna study to NVMe: {db_url}")
+            return optuna.create_study(
+                study_name="freqtrade_hyperopt",
+                storage=db_url,
+                load_if_exists=True,
+                sampler=sampler,
+                direction="minimize",
+            )
+        else:
+            return optuna.create_study(sampler=sampler, direction="minimize")
 
     def advise_and_trim(self, data: dict[str, DataFrame]) -> dict[str, DataFrame]:
         preprocessed = self.backtesting.strategy.advise_all_indicators(data)

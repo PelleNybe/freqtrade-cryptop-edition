@@ -7,7 +7,6 @@ Provides dynamic pair list based on Market Cap
 import logging
 import math
 
-from freqtrade.constants import PairPrefixes
 from freqtrade.exceptions import OperationalException
 from freqtrade.exchange.exchange_types import Tickers
 from freqtrade.plugins.pairlist.IPairList import IPairList, PairlistParameter, SupportsBacktesting
@@ -38,7 +37,7 @@ class MarketCapPairList(IPairList):
         self._max_rank = self._pairlistconfig.get("max_rank", 30)
         self._refresh_period = self._pairlistconfig.get("refresh_period", 86400)
         self._categories = self._pairlistconfig.get("categories", [])
-        self._marketcap_cache: FtTTLCache = FtTTLCache(maxsize=2, ttl=self._refresh_period)
+        self._marketcap_cache: FtTTLCache = FtTTLCache(maxsize=1, ttl=self._refresh_period)
 
         _coingecko_config = self._config.get("coingecko", {})
 
@@ -64,6 +63,15 @@ class MarketCapPairList(IPairList):
                 "This may lead to coingecko API rate limit issues. "
                 "Please ensure this value is necessary for your use case.",
             )
+
+    @property
+    def needstickers(self) -> bool:
+        """
+        Boolean property defining if tickers are necessary.
+        If no Pairlist requires tickers, an empty Dict is passed
+        as tickers argument to filter_pairlist
+        """
+        return False
 
     def short_desc(self) -> str:
         """
@@ -124,7 +132,7 @@ class MarketCapPairList(IPairList):
             k
             for k in self._exchange.get_markets(
                 quote_currencies=[self._stake_currency], tradable_only=True, active_only=True
-            )
+            ).keys()
         ]
 
         return markets
@@ -154,6 +162,9 @@ class MarketCapPairList(IPairList):
 
         return pairlist
 
+    # Prefixes to test to discover coins like 1000PEPE/USDDT:USDT or KPEPE/USDC (hyperliquid)
+    prefixes = ("1000", "K")
+
     def resolve_marketcap_pair(
         self,
         pair: str,
@@ -168,7 +179,7 @@ class MarketCapPairList(IPairList):
             return pair
 
         if pair not in markets:
-            for prefix in PairPrefixes:
+            for prefix in self.prefixes:
                 test_prefix = f"{prefix}{pair}"
 
                 if test_prefix in pairlist:

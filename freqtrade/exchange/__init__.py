@@ -7,9 +7,10 @@ from freqtrade.exchange.exchange import Exchange
 from freqtrade.exchange.binance import Binance, Binanceus, Binanceusdm
 from freqtrade.exchange.bingx import Bingx
 from freqtrade.exchange.bitget import Bitget
+from freqtrade.exchange.bitmart import Bitmart
 from freqtrade.exchange.bitpanda import Bitpanda
 from freqtrade.exchange.bitvavo import Bitvavo
-from freqtrade.exchange.bybit import Bybit, BybitEU
+from freqtrade.exchange.bybit import Bybit
 from freqtrade.exchange.coinex import Coinex
 from freqtrade.exchange.cryptocom import Cryptocom
 from freqtrade.exchange.exchange_utils import (
@@ -29,7 +30,6 @@ from freqtrade.exchange.exchange_utils import (
     validate_exchange,
 )
 from freqtrade.exchange.exchange_utils_timeframe import (
-    timeframe_to_floor_freq,
     timeframe_to_minutes,
     timeframe_to_msecs,
     timeframe_to_next_date,
@@ -37,13 +37,12 @@ from freqtrade.exchange.exchange_utils_timeframe import (
     timeframe_to_resample_freq,
     timeframe_to_seconds,
 )
-from freqtrade.exchange.gate import Gate, GateEU
+from freqtrade.exchange.gate import Gate
 from freqtrade.exchange.hitbtc import Hitbtc
 from freqtrade.exchange.htx import Htx
 from freqtrade.exchange.hyperliquid import Hyperliquid
 from freqtrade.exchange.idex import Idex
 from freqtrade.exchange.kraken import Kraken
-from freqtrade.exchange.krakenfutures import Krakenfutures
 from freqtrade.exchange.kucoin import Kucoin
 from freqtrade.exchange.lbank import Lbank
 from freqtrade.exchange.luno import Luno

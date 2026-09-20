@@ -184,17 +184,6 @@
       "description": "Enable recursive strategy search.",
       "type": "boolean"
     },
-    "strategy": {
-      "description": "Strategy class name (must be available in the user directory under strategies). Additional search paths can be added via strategy_path.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "strategy_path": {
-      "description": "Additional lookup path for strategy classes.",
-      "type": "string"
-    },
     "user_data_dir": {
       "description": "Path to the user data directory."
     },
@@ -268,15 +257,7 @@
       "description": "Buffer ratio for liquidation.",
       "type": "number",
       "minimum": 0.0,
-      "maximum": 0.99,
-      "default": 0.05
-    },
-    "liquidation_warn_ratio": {
-      "description": "Notify when the distance to a position's liquidation stop falls below this fraction of the price move that would use up its margin - with the default of 0.2, once the stop is less than 2% away at 10x leverage. Set to 0 to disable.",
-      "type": "number",
-      "minimum": 0.0,
-      "maximum": 0.99,
-      "default": 0.2
+      "maximum": 0.99
     },
     "backtest_breakdown": {
       "description": "Breakdown configuration for backtesting.",
@@ -301,10 +282,6 @@
         "week",
         "month"
       ]
-    },
-    "skip_wallet_history_migration": {
-      "description": "Disable wallet history migration.",
-      "type": "boolean"
     },
     "hyperopt_path": {
       "description": "Specify additional lookup path for Hyperopt Loss functions.",
@@ -638,17 +615,6 @@
       "description": "Logging configuration.",
       "$ref": "#/definitions/logging"
     },
-    "freqaimodel": {
-      "description": "FreqAI model class name (must be available in the user directory under freqaimodels). Additional search paths can be added via freqaimodel_path.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "freqaimodel_path": {
-      "description": "Additional lookup path for FreqAI model classes.",
-      "type": "string"
-    },
     "freqai": {
       "description": "FreqAI configuration.",
       "$ref": "#/definitions/freqai"
@@ -683,12 +649,10 @@
               "ProducerPairList",
               "RemotePairList",
               "MarketCapPairList",
-              "CrossMarketPairList",
               "AgeFilter",
               "DelistFilter",
               "FullTradesFilter",
               "OffsetFilter",
-              "PairInformationFilter",
               "PerformanceFilter",
               "PrecisionFilter",
               "PriceFilter",
@@ -861,16 +825,6 @@
                 "silent"
               ],
               "default": "on"
-            },
-            "liquidation_warning": {
-              "description": "Telegram setting for liquidation warnings.",
-              "type": "string",
-              "enum": [
-                "on",
-                "off",
-                "silent"
-              ],
-              "default": "on"
             }
           }
         },
@@ -948,9 +902,6 @@
           "type": "object"
         },
         "protection_trigger_global": {
-          "type": "object"
-        },
-        "liquidation_warning": {
           "type": "object"
         },
         "strategy_msg": {
@@ -1107,8 +1058,7 @@
         "jwt_secret_key": {
           "description": "Secret key for JWT authentication.",
           "type": "string",
-          "default": "somethingRandomSomethingRandom123",
-          "minLength": 32
+          "default": "somethingRandomSomethingRandom123"
         },
         "CORS_origins": {
           "description": "List of allowed CORS origins.",
@@ -1188,6 +1138,11 @@
           "type": "boolean"
         }
       }
+    },
+    "plot_template": {
+      "description": "Template to use for plotting (e.g., plotly_dark, plotly_white).",
+      "type": "string",
+      "default": "plotly_dark"
     },
     "dataformat_ohlcv": {
       "description": "Data format for OHLCV data.",
@@ -1294,63 +1249,36 @@
           "description": "Name of the exchange.",
           "type": "string"
         },
-        "api_key": {
-          "description": "API key for the exchange. Recommended to be set via environment variable FREQTRADE__EXCHANGE__API_KEY",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "key": {
-          "description": "API key for the exchange. Recommended to be set via environment variable FREQTRADE__EXCHANGE__KEY Deprecated, use api_key instead.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "description": "API key for the exchange. Recommended to be set via environment variable FREQTRADE__EXCHANGE__KEY",
+          "type": "string",
+          "default": ""
         },
         "secret": {
           "description": "API secret for the exchange. Recommended to be set via environment variable FREQTRADE__EXCHANGE__SECRET",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+          "type": "string",
+          "default": ""
         },
         "password": {
           "description": "Password for the exchange, if required. Recommended to be set via environment variable FREQTRADE__EXCHANGE__PASSWORD",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+          "type": "string",
+          "default": ""
         },
         "uid": {
           "description": "User ID for the exchange, if required. Recommended to be set via environment variable FREQTRADE__EXCHANGE__UID",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "account_id": {
           "description": "Account ID for the exchange, if required. Recommended to be set via environment variable FREQTRADE__EXCHANGE__ACCOUNT_ID",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "wallet_address": {
           "description": "Wallet address for the exchange, if required. Usually used by DEX exchanges. Recommended to be set via environment variable FREQTRADE__EXCHANGE__WALLET_ADDRESS",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "private_key": {
           "description": "Private key for the exchange, if required. Usually used by DEX exchanges. Recommended to be set via environment variable FREQTRADE__EXCHANGE__PRIVATE_KEY",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "pair_whitelist": {
           "description": "List of whitelisted trading pairs.",

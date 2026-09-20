@@ -1,9 +1,12 @@
 import logging
+import secrets
 
+from cachetools import TTLCache, cached
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 
-from freqtrade.enums import TradingMode
+from freqtrade.constants import PAIR_REGEX
+from freqtrade.enums import SignalDirection, TradingMode
 from freqtrade.rpc import RPC
 from freqtrade.rpc.api_server.api_schemas import (
     Balances,
@@ -31,11 +34,15 @@ from freqtrade.rpc.api_server.api_schemas import (
     ResultMsg,
     Stats,
     StatusMsg,
-    WalletHistoryResponse,
+    WebhookPayload,
     WhitelistResponse,
 )
-from freqtrade.rpc.api_server.deps import get_config, get_rpc
+from freqtrade.rpc.api_server.deps import RateLimiter, get_config, get_rpc
 from freqtrade.rpc.rpc import RPCException
+
+
+# EDGE OPTIMIZATION: In-memory TTL cache for high-frequency GET requests
+api_response_cache = TTLCache(maxsize=100, ttl=5)
 
 
 logger = logging.getLogger(__name__)
@@ -52,37 +59,72 @@ def balance(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
     )
 
 
-@router.get("/count", response_model=Count, tags=["Trading-info"])
+@router.get(
+    "/count",
+    response_model=Count,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def count(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_count()
 
 
-@router.get("/entries", response_model=list[Entry], tags=["Trading-info"])
-def entries(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+@router.get(
+    "/entries",
+    response_model=list[Entry],
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
+def entries(pair: str | None = Query(None, pattern=PAIR_REGEX), rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_enter_tag_performance(pair)
 
 
-@router.get("/exits", response_model=list[Exit], tags=["Trading-info"])
-def exits(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+@router.get(
+    "/exits",
+    response_model=list[Exit],
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
+def exits(pair: str | None = Query(None, pattern=PAIR_REGEX), rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_exit_reason_performance(pair)
 
 
-@router.get("/mix_tags", response_model=list[MixTag], tags=["Trading-info"])
-def mix_tags(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+@router.get(
+    "/mix_tags",
+    response_model=list[MixTag],
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
+def mix_tags(pair: str | None = Query(None, pattern=PAIR_REGEX), rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_mix_tag_performance(pair)
 
 
-@router.get("/performance", response_model=list[PerformanceEntry], tags=["Trading-info"])
+@router.get(
+    "/performance",
+    response_model=list[PerformanceEntry],
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def performance(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_performance()
 
 
-@router.get("/profit", response_model=Profit, tags=["Trading-info"])
+@router.get(
+    "/profit",
+    response_model=Profit,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def profit(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
     return rpc._rpc_trade_statistics(config["stake_currency"], config.get("fiat_display_currency"))
 
 
-@router.get("/profit_all", response_model=ProfitAll, tags=["Trading-info"])
+@router.get(
+    "/profit_all",
+    response_model=ProfitAll,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def profit_all(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
     response = {
         "all": rpc._rpc_trade_statistics(
@@ -100,28 +142,22 @@ def profit_all(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
     return response
 
 
-@router.get("/stats", response_model=Stats, tags=["Trading-info"])
+@router.get(
+    "/stats",
+    response_model=Stats,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def stats(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_stats()
 
 
 @router.get(
-    "/historic_balance",
-    response_model=WalletHistoryResponse,
-    tags=["info"],
+    "/daily",
+    response_model=DailyWeeklyMonthly,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
 )
-def api_get_wallet_history(rpc: RPC = Depends(get_rpc)):
-    results, capture_date_ts = rpc._rpc_get_historic_balance()
-
-    return {
-        "columns": results.columns.tolist(),
-        "data": results.values.tolist(),
-        "length": len(results),
-        "capture_start_ts": capture_date_ts,
-    }
-
-
-@router.get("/daily", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
 def daily(
     timescale: int = Query(7, ge=1, description="Number of days to fetch data for"),
     rpc: RPC = Depends(get_rpc),
@@ -132,7 +168,12 @@ def daily(
     )
 
 
-@router.get("/weekly", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
+@router.get(
+    "/weekly",
+    response_model=DailyWeeklyMonthly,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def weekly(
     timescale: int = Query(4, ge=1, description="Number of weeks to fetch data for"),
     rpc: RPC = Depends(get_rpc),
@@ -143,7 +184,12 @@ def weekly(
     )
 
 
-@router.get("/monthly", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
+@router.get(
+    "/monthly",
+    response_model=DailyWeeklyMonthly,
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def monthly(
     timescale: int = Query(3, ge=1, description="Number of months to fetch data for"),
     rpc: RPC = Depends(get_rpc),
@@ -154,7 +200,13 @@ def monthly(
     )
 
 
-@router.get("/status", response_model=list[OpenTradeSchema], tags=["Trading-info"])
+@router.get(
+    "/status",
+    response_model=list[OpenTradeSchema],
+    tags=["Trading-info"],
+    dependencies=[Depends(RateLimiter(max_calls=20, time_seconds=60))],
+)
+@cached(cache=api_response_cache)
 def status(rpc: RPC = Depends(get_rpc)):
     try:
         return rpc._rpc_trade_status()
@@ -164,15 +216,23 @@ def status(rpc: RPC = Depends(get_rpc)):
 
 # Using the responsemodel here will cause a ~100% increase in response time (from 1s to 2s)
 # on big databases. Correct response model: response_model=TradeResponse,
-@router.get("/trades", tags=["Trading-info", "Trades"])
+@router.get(
+    "/trades",
+    tags=["Trading-info", "Trades"],
+    dependencies=[Depends(RateLimiter(max_calls=10, time_seconds=60))],
+)
 def trades(
-    limit: int = Query(500, ge=1, description="Maximum number of different trades to return data"),
+    limit: int = Query(
+        500, ge=1, le=1000, description="Maximum number of different trades to return data"
+    ),
     offset: int = Query(0, ge=0, description="Number of trades to skip for pagination"),
     order_by_id: bool = Query(
         True, description="Sort trades by id (default: True). If False, sorts by latest timestamp"
     ),
     rpc: RPC = Depends(get_rpc),
 ):
+    if offset > 100000:
+        raise HTTPException(status_code=400, detail="Offset too large.")
     return rpc._rpc_trade_history(limit, offset=offset, order_by_id=order_by_id)
 
 
@@ -204,7 +264,9 @@ def trade_reload(tradeid: int, rpc: RPC = Depends(get_rpc)):
 @router.get("/trades/open/custom-data", response_model=list[ListCustomData], tags=["Trades"])
 def list_open_trades_custom_data(
     key: str | None = Query(None, description="Optional key to filter data"),
-    limit: int = Query(100, ge=1, description="Maximum number of different trades to return data"),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum number of different trades to return data"
+    ),
     offset: int = Query(0, ge=0, description="Number of trades to skip for pagination"),
     rpc: RPC = Depends(get_rpc),
 ):
@@ -232,12 +294,18 @@ def list_custom_data(trade_id: int, key: str | None = Query(None), rpc: RPC = De
 
 
 # /forcebuy is deprecated with short addition. use /forceentry instead
-@router.post("/forceenter", response_model=ForceEnterResponse, tags=["Trades"])
+@router.post(
+    "/forceenter",
+    response_model=ForceEnterResponse,
+    tags=["Trades"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 @router.post(
     "/forcebuy",
     response_model=ForceEnterResponse,
     tags=["Trades"],
     summary="(deprecated) Please use /forceenter instead",
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
 )
 def force_entry(payload: ForceEnterPayload, rpc: RPC = Depends(get_rpc)):
     ordertype = payload.ordertype.value if payload.ordertype else None
@@ -261,12 +329,18 @@ def force_entry(payload: ForceEnterPayload, rpc: RPC = Depends(get_rpc)):
 
 
 # /forcesell is deprecated with short addition. use /forceexit instead
-@router.post("/forceexit", response_model=ResultMsg, tags=["Trades"])
+@router.post(
+    "/forceexit",
+    response_model=ResultMsg,
+    tags=["Trades"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 @router.post(
     "/forcesell",
     response_model=ResultMsg,
     tags=["Trades"],
     summary="(deprecated) Please use /forceexit instead",
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
 )
 def forceexit(payload: ForceExitPayload, rpc: RPC = Depends(get_rpc)):
     ordertype = payload.ordertype.value if payload.ordertype else None
@@ -280,12 +354,22 @@ def blacklist(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_blacklist()
 
 
-@router.post("/blacklist", response_model=BlacklistResponse, tags=["Pairlist"])
+@router.post(
+    "/blacklist",
+    response_model=BlacklistResponse,
+    tags=["Pairlist"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def blacklist_post(payload: BlacklistPayload, rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_blacklist(payload.blacklist)
 
 
-@router.delete("/blacklist", response_model=BlacklistResponse, tags=["Pairlist"])
+@router.delete(
+    "/blacklist",
+    response_model=BlacklistResponse,
+    tags=["Pairlist"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def blacklist_delete(pairs_to_delete: list[str] = Query([]), rpc: RPC = Depends(get_rpc)):
     """Provide a list of pairs to delete from the blacklist"""
 
@@ -319,36 +403,167 @@ def add_locks(payload: list[LocksPayload], rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_locks()
 
 
-@router.post("/start", response_model=StatusMsg, tags=["Bot-control"])
+@router.post(
+    "/start",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def start(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_start()
 
 
-@router.post("/stop", response_model=StatusMsg, tags=["Bot-control"])
+@router.post(
+    "/stop",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def stop(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_stop()
 
 
-@router.post("/pause", response_model=StatusMsg, tags=["Bot-control"])
-@router.post("/stopentry", response_model=StatusMsg, tags=["Bot-control"])
-@router.post("/stopbuy", response_model=StatusMsg, tags=["Bot-control"])
+@router.post(
+    "/pause",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
+@router.post(
+    "/stopentry",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
+@router.post(
+    "/stopbuy",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def pause(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_pause()
 
 
-@router.post("/reload_config", response_model=StatusMsg, tags=["Bot-control"])
+@router.post(
+    "/reload_config",
+    response_model=StatusMsg,
+    tags=["Bot-control"],
+    dependencies=[Depends(RateLimiter(max_calls=5, time_seconds=60))],
+)
 def reload_config(rpc: RPC = Depends(get_rpc)):
     return rpc._rpc_reload_config()
 
 
-@router.get("/pair_candles", response_model=PairHistory, tags=["Candle data"])
-def pair_candles(pair: str, timeframe: str, limit: int | None = None, rpc: RPC = Depends(get_rpc)):
+@router.get(
+    "/pair_candles",
+    response_model=PairHistory,
+    tags=["Candle data"],
+    dependencies=[Depends(RateLimiter(max_calls=10, time_seconds=60))],
+)
+def pair_candles(
+    pair: str = Query(..., pattern=PAIR_REGEX),
+    timeframe: str = Query(...),
+    limit: int | None = Query(None, gt=0, le=1500),
+    rpc: RPC = Depends(get_rpc),
+):
     return rpc._rpc_analysed_dataframe(pair, timeframe, limit, None)
 
 
-@router.post("/pair_candles", response_model=PairHistory, tags=["Candle data"])
+@router.post(
+    "/pair_candles",
+    response_model=PairHistory,
+    tags=["Candle data"],
+    dependencies=[Depends(RateLimiter(max_calls=10, time_seconds=60))],
+)
 def pair_candles_filtered(payload: PairCandlesRequest, rpc: RPC = Depends(get_rpc)):
     # Advanced pair_candles endpoint with column filtering
     return rpc._rpc_analysed_dataframe(
         payload.pair, payload.timeframe, payload.limit, payload.columns
     )
+
+
+def _webhook_entry(payload: WebhookPayload, rpc: RPC) -> StatusMsg:
+    ordertype = payload.ordertype.value if payload.ordertype else None
+
+    # Determine side
+    side = payload.side
+    if not side:
+        if payload.action == "short":
+            side = SignalDirection.SHORT
+        else:
+            side = SignalDirection.LONG
+
+    trade = rpc._rpc_force_entry(
+        payload.pair,
+        payload.price,
+        order_side=side,
+        order_type=ordertype,
+        stake_amount=payload.stake_amount,
+        enter_tag=payload.entry_tag or "webhook_entry",
+        leverage=payload.leverage,
+    )
+    if trade:
+        return StatusMsg(status="entry_success")
+    else:
+        raise HTTPException(status_code=400, detail="Entry failed")
+
+
+def _webhook_exit(payload: WebhookPayload, rpc: RPC) -> StatusMsg:
+    # Find open trades for pair
+    try:
+        trades = rpc._rpc_trade_status()
+    except RPCException:
+        trades = []
+
+    # Filter by pair
+    pair_trades = [t for t in trades if t["pair"] == payload.pair]
+
+    if not pair_trades:
+        raise HTTPException(status_code=404, detail=f"No open trade found for {payload.pair}")
+
+    results = []
+    ordertype = payload.ordertype.value if payload.ordertype else None
+
+    for trade in pair_trades:
+        # Check side if specified
+        if payload.side:
+            is_short = trade.get("is_short", False)
+            if (payload.side == SignalDirection.SHORT and not is_short) or (
+                payload.side == SignalDirection.LONG and is_short
+            ):
+                continue
+
+        try:
+            rpc._rpc_force_exit(str(trade["trade_id"]), ordertype, amount=None, price=payload.price)
+            results.append(trade["trade_id"])
+        except RPCException:
+            pass
+
+    if not results:
+        return StatusMsg(status="No trades closed (maybe wrong side?)")
+
+    return StatusMsg(status=f"exit_initiated for {len(results)} trades")
+
+
+@router.post("/webhook", tags=["Webhook"])
+def webhook(payload: WebhookPayload, rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
+    """
+    Webhook endpoint to trigger buy/sell actions.
+    Requires 'webhook.webhook_token' to be set in config.
+    """
+    webhook_token = config.get("webhook", {}).get("webhook_token")
+    if not webhook_token:
+        raise HTTPException(status_code=400, detail="Webhook token not configured")
+
+    if not secrets.compare_digest(payload.token, webhook_token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    if payload.action in ("entry", "buy", "long", "short"):
+        return _webhook_entry(payload, rpc)
+
+    elif payload.action in ("exit", "sell"):
+        return _webhook_exit(payload, rpc)
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid action: {payload.action}")

@@ -2,7 +2,7 @@ name: Pre-commit auto-update
 
 on:
   schedule:
-    - cron: "13 1 * * 2"
+    - cron: "0 3 * * 2"
   # on demand
   workflow_dispatch:
 
@@ -17,22 +17,18 @@ jobs:
   auto-update:
     name: Auto-update pre-commit hooks
     runs-on: ubuntu-latest
-    environment:
-      name: develop
-
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
 
-    - name: Install uv and Python 🐍
-      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
-        activate-environment: true
-        python-version: "3.13"
+        python-version: "3.12"
+
 
     - name: Install pre-commit
-      run: uv pip install $(grep -E "^pre-commit==" requirements-dev.txt)
+      run: pip install pre-commit
 
     - name: Run auto-update
       run: pre-commit autoupdate

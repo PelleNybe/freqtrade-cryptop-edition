@@ -10,4 +10,3 @@ from freqtrade.persistence.usedb_context import (
     disable_database_use,
     enable_database_use,
 )
-from freqtrade.persistence.wallet_history import WalletHistory

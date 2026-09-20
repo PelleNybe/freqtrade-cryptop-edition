@@ -61,7 +61,7 @@ class HyperoptTools:
         return None
 
     @staticmethod
-    def export_params(params: dict[str, Any], strategy_name: str, filename: Path) -> None:
+    def export_params(params, strategy_name: str, filename: Path):
         """
         Generate files
         """
@@ -84,18 +84,13 @@ class HyperoptTools:
             )
 
     @staticmethod
-    def load_params(data: bytes | str) -> dict[str, Any]:
-        """
-        Load parameters from the raw content of a parameter file
-        """
-        return rapidjson.loads(data, number_mode=HYPER_PARAMS_FILE_FORMAT)
-
-    @staticmethod
-    def load_params_from_file(filename: Path) -> dict[str, Any]:
+    def load_params(filename: Path) -> dict:
         """
         Load parameters from file
         """
-        return HyperoptTools.load_params(filename.read_text())
+        with filename.open("r") as f:
+            params = rapidjson.load(f, number_mode=HYPER_PARAMS_FILE_FORMAT)
+        return params
 
     @staticmethod
     def try_export_params(config: Config, strategy_name: str, params: dict):
@@ -175,7 +170,7 @@ class HyperoptTools:
             if total_epochs == 0 and epochs_tmp[0].get("is_best") is None:
                 raise OperationalException(
                     "The file with HyperoptTools results is incompatible with this version "
-                    "of Freqtrade and cannot be loaded."
+                    "of Freqtrade - Crypto P Edition and cannot be loaded."
                 )
             total_epochs += len(epochs_tmp)
             epochs += hyperopt_filter_epochs(epochs_tmp, filteroptions, log=False)
@@ -401,7 +396,7 @@ class HyperoptTools:
         ]
         perc_multi = 100
 
-        param_metrics = [("params_dict." + param) for param in results[0]["params_dict"]]
+        param_metrics = [("params_dict." + param) for param in results[0]["params_dict"].keys()]
         trials = trials[base_metrics + param_metrics]
 
         base_columns = [

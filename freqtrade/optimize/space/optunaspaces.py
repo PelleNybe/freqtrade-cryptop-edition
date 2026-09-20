@@ -19,7 +19,7 @@ class ft_CategoricalDistribution(CategoricalDistribution):
         self.categories = categories
         # if len(categories) <= 1:
         #     raise Exception(f"need at least 2 categories for {name}")
-        super().__init__(categories)
+        return super().__init__(categories)
 
     def __repr__(self):
         return f"CategoricalDistribution({self.categories})"
@@ -28,15 +28,15 @@ class ft_CategoricalDistribution(CategoricalDistribution):
 class ft_IntDistribution(IntDistribution):
     def __init__(
         self,
-        low: float,
-        high: float,
+        low: int | float,
+        high: int | float,
         name: str,
         **kwargs,
     ):
         self.name = name
         self.low = int(low)
         self.high = int(high)
-        super().__init__(self.low, self.high, **kwargs)
+        return super().__init__(self.low, self.high, **kwargs)
 
     def __repr__(self):
         return f"IntDistribution(low={self.low}, high={self.high})"
@@ -53,7 +53,7 @@ class ft_FloatDistribution(FloatDistribution):
         self.name = name
         self.low = low
         self.high = high
-        super().__init__(low, high, **kwargs)
+        return super().__init__(low, high, **kwargs)
 
     def __repr__(self):
         return f"FloatDistribution(low={self.low}, high={self.high}, step={self.step})"

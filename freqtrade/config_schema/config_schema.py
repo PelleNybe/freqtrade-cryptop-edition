@@ -164,17 +164,6 @@ CONF_SCHEMA = {
             "description": "Enable recursive strategy search.",
             "type": "boolean",
         },
-        "strategy": {
-            "description": (
-                "Strategy class name (must be available in the user directory "
-                "under strategies). Additional search paths can be added via strategy_path."
-            ),
-            "type": ["string", "null"],
-        },
-        "strategy_path": {
-            "description": "Additional lookup path for strategy classes.",
-            "type": "string",
-        },
         "user_data_dir": {
             "description": "Path to the user data directory.",
         },
@@ -236,18 +225,6 @@ CONF_SCHEMA = {
             "type": "number",
             "minimum": 0.0,
             "maximum": 0.99,
-            "default": 0.05,
-        },
-        "liquidation_warn_ratio": {
-            "description": (
-                "Notify when the distance to a position's liquidation stop falls below this "
-                "fraction of the price move that would use up its margin - with the default of "
-                "0.2, once the stop is less than 2% away at 10x leverage. Set to 0 to disable."
-            ),
-            "type": "number",
-            "minimum": 0.0,
-            "maximum": 0.99,
-            "default": 0.2,
         },
         "backtest_breakdown": {
             "description": "Breakdown configuration for backtesting.",
@@ -258,10 +235,6 @@ CONF_SCHEMA = {
             "description": "Load a cached backtest result no older than specified age.",
             "type": "string",
             "enum": BACKTEST_CACHE_AGE,
-        },
-        "skip_wallet_history_migration": {
-            "description": "Disable wallet history migration.",
-            "type": "boolean",
         },
         # Hyperopt
         "hyperopt_path": {
@@ -537,17 +510,6 @@ CONF_SCHEMA = {
             "description": "Logging configuration.",
             "$ref": "#/definitions/logging",
         },
-        "freqaimodel": {
-            "description": (
-                "FreqAI model class name (must be available in the user directory "
-                "under freqaimodels). Additional search paths can be added via freqaimodel_path."
-            ),
-            "type": ["string", "null"],
-        },
-        "freqaimodel_path": {
-            "description": "Additional lookup path for FreqAI model classes.",
-            "type": "string",
-        },
         "freqai": {
             "description": "FreqAI configuration.",
             "$ref": "#/definitions/freqai",
@@ -686,12 +648,6 @@ CONF_SCHEMA = {
                             "enum": TELEGRAM_SETTING_OPTIONS,
                             "default": "on",
                         },
-                        "liquidation_warning": {
-                            "description": "Telegram setting for liquidation warnings.",
-                            "type": "string",
-                            "enum": TELEGRAM_SETTING_OPTIONS,
-                            "default": "on",
-                        },
                     },
                 },
                 "reload": {
@@ -797,7 +753,6 @@ CONF_SCHEMA = {
                     "description": "Secret key for JWT authentication.",
                     "type": "string",
                     "default": "somethingRandomSomethingRandom123",
-                    "minLength": 32,
                 },
                 "CORS_origins": {
                     "description": "List of allowed CORS origins.",
@@ -865,6 +820,11 @@ CONF_SCHEMA = {
                     "type": "boolean",
                 },
             },
+        },
+        "plot_template": {
+            "description": "Template to use for plotting (e.g., plotly_dark, plotly_white).",
+            "type": "string",
+            "default": "plotly_dark",
         },
         "dataformat_ohlcv": {
             "description": "Data format for OHLCV data.",
@@ -954,47 +914,41 @@ CONF_SCHEMA = {
             "type": "object",
             "properties": {
                 "name": {"description": "Name of the exchange.", "type": "string"},
-                "api_key": {
-                    "description": (
-                        f"API key for the exchange. {__VIA_ENV} FREQTRADE__EXCHANGE__API_KEY"
-                    ),
-                    "type": ["string", "null"],
-                },
                 "key": {
                     "description": (
                         f"API key for the exchange. {__VIA_ENV} FREQTRADE__EXCHANGE__KEY"
-                        " Deprecated, use api_key instead."
                     ),
-                    "type": ["string", "null"],
+                    "type": "string",
+                    "default": "",
                 },
                 "secret": {
                     "description": (
                         f"API secret for the exchange. {__VIA_ENV} FREQTRADE__EXCHANGE__SECRET"
                     ),
-                    "type": ["string", "null"],
-                    "default": None,
+                    "type": "string",
+                    "default": "",
                 },
                 "password": {
                     "description": (
                         "Password for the exchange, if required. "
                         f"{__VIA_ENV} FREQTRADE__EXCHANGE__PASSWORD"
                     ),
-                    "type": ["string", "null"],
-                    "default": None,
+                    "type": "string",
+                    "default": "",
                 },
                 "uid": {
                     "description": (
                         "User ID for the exchange, if required. "
                         f"{__VIA_ENV} FREQTRADE__EXCHANGE__UID"
                     ),
-                    "type": ["string", "null"],
+                    "type": "string",
                 },
                 "account_id": {
                     "description": (
                         "Account ID for the exchange, if required. "
                         f"{__VIA_ENV} FREQTRADE__EXCHANGE__ACCOUNT_ID"
                     ),
-                    "type": ["string", "null"],
+                    "type": "string",
                 },
                 "wallet_address": {
                     "description": (
@@ -1002,14 +956,14 @@ CONF_SCHEMA = {
                         "Usually used by DEX exchanges. "
                         f"{__VIA_ENV} FREQTRADE__EXCHANGE__WALLET_ADDRESS"
                     ),
-                    "type": ["string", "null"],
+                    "type": "string",
                 },
                 "private_key": {
                     "description": (
                         "Private key for the exchange, if required. Usually used by DEX exchanges. "
                         f"{__VIA_ENV} FREQTRADE__EXCHANGE__PRIVATE_KEY"
                     ),
-                    "type": ["string", "null"],
+                    "type": "string",
                 },
                 "pair_whitelist": {
                     "description": "List of whitelisted trading pairs.",

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from freqtrade.configuration import validate_config_consistency
 from freqtrade.rpc.api_server.api_pairlists import handleExchangePayload
 from freqtrade.rpc.api_server.api_schemas import PairHistory, PairHistoryRequest
-from freqtrade.rpc.api_server.deps import get_config, get_exchange, verify_strategy
+from freqtrade.rpc.api_server.deps import get_config, get_exchange
 from freqtrade.rpc.rpc import RPC
 
 
@@ -25,9 +25,11 @@ def pair_history(
     config=Depends(get_config),
     exchange=Depends(get_exchange),
 ):
-    verify_strategy(strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
+    if ":" in strategy:
+        raise HTTPException(status_code=500, detail="base64 encoded strategies are not allowed.")
+
     config_loc = deepcopy(config)
     config_loc.update(
         {
@@ -46,9 +48,11 @@ def pair_history(
 
 @router.post("/pair_history", response_model=PairHistory, tags=["Candle data"])
 def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config)):
-    verify_strategy(payload.strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
+    if payload.strategy and ":" in payload.strategy:
+        raise HTTPException(status_code=500, detail="base64 encoded strategies are not allowed.")
+
     config_loc = deepcopy(config)
     config_loc.update(
         {

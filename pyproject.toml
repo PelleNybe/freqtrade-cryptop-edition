@@ -11,7 +11,7 @@ authors = [
   {name = "Freqtrade Team", email = "freqtrade@protonmail.com"},
 ]
 
-description = "Freqtrade - Crypto Trading Bot"
+description = "Freqtrade - Crypto P Edition - Crypto Trading Bot"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "GPLv3"}
@@ -30,7 +30,7 @@ classifiers = [
 
 dependencies = [
   # from requirements.txt
-  "ccxt>=4.5.76",
+  "ccxt>=4.5.4",
   "SQLAlchemy>=2.0.6",
   "python-telegram-bot>=20.1",
   "humanize>=4.0.0",
@@ -38,14 +38,10 @@ dependencies = [
   "requests",
   "httpx>=0.24.1",
   "urllib3",
-  "certifi>=2026.1.4",
   "jsonschema",
-  "scipy",
   "numpy>2.0,<3.0",
   "pandas>=2.2.0,<4.0",
-  "bottleneck>=1.5.0",
-  "numexpr>=2.14.0",
-  "TA-Lib<0.8",
+  "TA-Lib<0.7",
   "ft-pandas-ta",
   "technical",
   "tabulate",
@@ -56,7 +52,6 @@ dependencies = [
   "questionary",
   "prompt-toolkit",
   "joblib>=1.2.0",
-  "cloudpickle>=3.1.2,<4.0",
   "rich",
   'pyarrow; platform_machine != "armv7l"',
   "fastapi",
@@ -82,27 +77,29 @@ dependencies = [
 # Requirements used for submodules
 plot = ["plotly>=4.0"]
 hyperopt = [
+  "scipy",
+  "scikit-learn",
+  "optuna > 4.0.0",
   "cmaes",
   "filelock",
-  "optuna > 4.0.0",
-  "scikit-learn",
 ]
 freqai = [
-  "datasieve>=0.1.5",
+  "scikit-learn",
   "joblib",
   "lightgbm",
-  "scikit-learn",
-  "tensorboard",
   "xgboost",
+  "tensorboard",
+  "datasieve>=0.1.5",
 ]
 freqai_rl = [
-  "gymnasium",
-  "sb3-contrib; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-  "stable-baselines3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "torch; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "gymnasium",
+  "stable-baselines3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  "sb3-contrib; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   "tqdm",
 ]
 develop = [
+  "isort",
   "mypy",
   "pre-commit",
   "pytest-asyncio",
@@ -122,10 +119,10 @@ develop = [
   "types-tabulate",
 ]
 jupyter = [
-  "ipykernel",
   "jupyter",
-  "nbconvert",
   "nbstripout",
+  "ipykernel",
+  "nbconvert",
 ]
 all = [
   "freqtrade[plot,hyperopt,freqai,freqai_rl,jupyter]",
@@ -156,19 +153,43 @@ namespaces = true
 [tool.setuptools.dynamic]
 version = {attr = "freqtrade.__version__"}
 
-[tool.pytest]
+[tool.black]
+line-length = 100
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  # Exclude vendor directory
+  | vendor
+)
+'''
+
+[tool.isort]
+line_length = 100
+profile = "black"
+# multi_line_output=3
+lines_after_imports=2
+skip_glob = ["**/.env*", "**/env/*", "**/.venv/*", "**/docs/*", "**/user_data/*"]
+known_first_party = ["freqtrade_client"]
+
+[tool.pytest.ini_options]
+# TODO: should be migrated to [tool.pytest] as support for this was added in 9.0
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
-addopts = ["--dist", "loadscope"]
 
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-
-filterwarnings = [
-    # aiohttp warns that enable_cleanup_closed is a no-op on Python 3.14+
-    # It's set internally by ccxt/aiohttp and out of our control.
-    "ignore:enable_cleanup_closed ignored:DeprecationWarning:aiohttp.connector",
-]
+addopts = "--dist loadscope"
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -227,18 +248,10 @@ reportRedeclaration = false  # 1
 reportReturnType = false  # 28
 reportTypedDictNotRequiredAccess = false  # 27
 
-[tool.uv]
-exclude-newer = "1 week"
-
-[tool.uv.exclude-newer-package]
-ccxt = false
-ruff = "5 days"
-cryptography = "5 days"
 
 [tool.ruff]
 line-length = 100
-# TODO: markdown files should be linted.
-extend-exclude = [".env", ".venv", "*.md"]
+extend-exclude = [".env", ".venv"]
 
 [tool.ruff.lint]
 extend-select = [
@@ -252,9 +265,11 @@ extend-select = [
   "I",      # isort
   "A",      # flake8-builtins
   "TID",    # flake8-tidy-imports
+  # "EXE",  # flake8-executable
   # "C4",     # flake8-comprehensions
   "YTT",    # flake8-2020
   "S",      # flake8-bandit
+  # "DTZ",  # flake8-datetimez
   # "RSE",  # flake8-raise
   # "TCH",  # flake8-type-checking
   "PTH",    # flake8-use-pathlib
@@ -267,6 +282,7 @@ extend-ignore = [
   "E241",  # Multiple spaces after comma
   "E272",  # Multiple spaces before keyword
   "E221",  # Multiple spaces before operator
+  "B007",  # Loop control variable not used
   "B904",  # BugBear - except raise from
   "S603",  # `subprocess` call: check for execution of untrusted input
   "S607",  # Starting a process with a partial executable path
@@ -276,16 +292,10 @@ extend-ignore = [
   "RUF012",  # mutable-class-default
   "RUF022",  # unsorted-dunder-all
   "RUF005",  # list concatenation
-  "BLE001",  # Do not catch blind exception: `Exception`
-  "SIM117",  # Multiple with statements
-  # TODO: the below rules are in the default now and should be reconsidered.
-  "N999",  # Invalid module name
-  # "DTZ",  # Use timezone-aware datetime objects
-  "DTZ007",  # Use timezone-aware datetime objects
-  "TRY401",  # Redundant exception object in logging.exception call
-  "TRY004",  # Wrong exception type when raising for type error
 ]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
 "freqtrade/freqai/**/*.py" = [
@@ -298,9 +308,6 @@ extend-ignore = [
   "S105",  # Possible hardcoded password assigned to: "secret"
   "S106",  # Possible hardcoded password assigned to argument: "token_type"
   "S110",  # `try`-`except`-`pass` detected, consider logging the exception
-  "TRY002", # create your own Exception
-  "DTZ005",  # Use timezone-aware datetime objects
-  "DTZ", # Use timezone-aware datetime objects
   ]
 
 "freqtrade/templates/**.py" = [
@@ -310,9 +317,6 @@ extend-ignore = [
 "ft_client/test_client/**.py" = [
   "S101",  # allow assert in tests
 ]
-
-[tool.ruff.lint.mccabe]
-max-complexity = 12
 
 [tool.ruff.lint.flake8-bugbear]
 # Allow default arguments like, e.g., `data: List[str] = fastapi.Query(None)`.
@@ -340,3 +344,5 @@ exclude = [
 [tool.codespell]
 ignore-words-list = "coo,fo,strat,zar,selectin"
 skip="*.svg,./user_data,freqtrade/rpc/api_server/ui/installed,freqtrade/exchange/*.json"
+[tool.vercel]
+entrypoint = "api.index:app"

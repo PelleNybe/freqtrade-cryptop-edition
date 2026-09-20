@@ -20,6 +20,7 @@ from freqtrade.constants import (
     PairWithTimeframe,
 )
 from freqtrade.data.history import get_datahandler, load_pair_history
+from freqtrade.data.sentiment import NLPSentimentDaemon
 from freqtrade.enums import CandleType, RPCMessageType, RunMode, TradingMode
 from freqtrade.exceptions import ExchangeError, OperationalException
 from freqtrade.exchange import Exchange, timeframe_to_prev_date, timeframe_to_seconds
@@ -69,6 +70,10 @@ class DataProvider:
         self.producers = self._config.get("external_message_consumer", {}).get("producers", [])
         self.external_data_enabled = len(self.producers) > 0
 
+        self._sentiment_daemon = NLPSentimentDaemon(self._config)
+        if self._sentiment_daemon.enabled:
+            self._sentiment_daemon.start()
+
     def _set_dataframe_max_index(self, pair: str, limit_index: int):
         """
         Limit analyzed dataframe to max specified index.
@@ -95,8 +100,7 @@ class DataProvider:
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
         :param dataframe: analyzed dataframe
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            Must match the trading mode.
+        :param candle_type: Any of the enum CandleType (must match trading mode!)
         """
         pair_key = (pair, timeframe, candle_type)
         self.__cached_pairs[pair_key] = (dataframe, datetime.now(UTC))
@@ -158,8 +162,7 @@ class DataProvider:
 
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            Must match the trading mode.
+        :param candle_type: Any of the enum CandleType (must match trading mode!)
         """
         pair_key = (pair, timeframe, candle_type)
 
@@ -186,8 +189,7 @@ class DataProvider:
 
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            Must match the trading mode.
+        :param candle_type: Any of the enum CandleType (must match trading mode!)
         :returns: False if the candle could not be appended, or the int number of missing candles.
         """
         pair_key = (pair, timeframe, candle_type)
@@ -267,7 +269,7 @@ class DataProvider:
 
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
+        :param candle_type: Any of the enum CandleType (must match trading mode!)
         :returns: Tuple of the DataFrame and last analyzed timestamp
         """
         _timeframe = self._default_timeframe if not timeframe else timeframe
@@ -300,8 +302,7 @@ class DataProvider:
         Get stored historical candle (OHLCV) data
         :param pair: pair to get the data for
         :param timeframe: timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            '' (the default) resolves to the trading mode's candle type.
+        :param candle_type: '', mark, index, premiumIndex, or funding_rate
         """
         _candle_type = (
             CandleType.from_string(candle_type)
@@ -378,9 +379,8 @@ class DataProvider:
         will be available.
         :param pair: pair to get the data for
         :param timeframe: timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            '' (the default) resolves to the trading mode's candle type.
         :return: Dataframe for this pair
+        :param candle_type: '', mark, index, premiumIndex, or funding_rate
         """
         timeframe = self.__fix_funding_rate_timeframe(pair, timeframe, candle_type)
         if self.runmode in (RunMode.DRY_RUN, RunMode.LIVE):
@@ -479,8 +479,9 @@ class DataProvider:
         """
 
         use_public_trades = self._config.get("exchange", {}).get("use_public_trades", False)
-        if use_public_trades and self._exchange:
-            self._exchange.refresh_latest_trades(pairlist)
+        if use_public_trades:
+            if self._exchange:
+                self._exchange.refresh_latest_trades(pairlist)
 
     @property
     def available_pairs(self) -> ListPairsWithTimeframes:
@@ -500,8 +501,7 @@ class DataProvider:
         Please use the `available_pairs` method to verify which pairs are currently cached.
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            '' (the default) resolves to the trading mode's candle type.
+        :param candle_type: '', mark, index, premiumIndex, or funding_rate
         :param copy: copy dataframe before returning if True.
                      Use False only for read-only operations (where the dataframe is not modified)
         """
@@ -533,8 +533,7 @@ class DataProvider:
         This is not meant to be used in callbacks because of lookahead bias.
         :param pair: pair to get the data for
         :param timeframe: Timeframe to get data for
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-                            '' (the default) resolves to the trading mode's candle type.
+        :param candle_type: '', mark, index, premiumIndex, or funding_rate
         :param copy: copy dataframe before returning if True.
                      Use False only for read-only operations (where the dataframe is not modified)
         """
@@ -652,3 +651,30 @@ class DataProvider:
         if self._exchange is None:
             raise OperationalException(NO_EXCHANGE_EXCEPTION)
         return self._exchange.get_option("funding_fee_timeframe")
+
+    def sentiment(self, pair: str) -> float:
+        """
+        Get sentiment for a pair.
+        Returns a float between -1.0 (very negative) and 1.0 (very positive).
+        :param pair: Pair to get sentiment for.
+        :return: Sentiment score.
+        """
+        return self._sentiment.get_sentiment(pair)
+
+    def get_global_sentiment(self) -> float:
+        """
+        Get the current global market sentiment from the NLP Sentiment Daemon.
+        Returns a float between -1.0 (bearish) and 1.0 (bullish).
+        """
+        if getattr(self, "_sentiment_daemon", None):
+            return self._sentiment_daemon.get_global_sentiment()
+        return 0.0
+
+    def get_pair_sentiment(self, pair: str) -> float:
+        """
+        Get the current sentiment for a specific pair from the NLP Sentiment Daemon.
+        Returns a float between -1.0 (bearish) and 1.0 (bullish).
+        """
+        if getattr(self, "_sentiment_daemon", None):
+            return self._sentiment_daemon.get_pair_sentiment(pair)
+        return 0.0

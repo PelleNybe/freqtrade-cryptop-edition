@@ -15,7 +15,6 @@ from freqtrade.loggers.set_log_levels import (
 )
 from freqtrade.optimize.analysis.base_analysis import BaseAnalysis, VarHolder
 from freqtrade.optimize.backtesting import Backtesting
-from freqtrade.util import CustomProgress
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,10 @@ class LookaheadAnalysis(BaseAnalysis):
             return False
         else:
             df_cut = df[(df[column_name] == checked_timestamp)]
-            return df_cut[column_name].shape[0] != 0
+            if df_cut[column_name].shape[0] == 0:
+                return False
+            else:
+                return True
         return False
 
     # analyzes two data frames with processed indicators and shows differences between them.
@@ -83,16 +85,14 @@ class LookaheadAnalysis(BaseAnalysis):
                 other_value = compare_df_row.iloc[col_idx + 1]
 
                 # output differences
-                if (
-                    self_value != other_value
-                    and not self.current_analysis.false_indicators.__contains__(col_name[0])
-                ):
-                    self.current_analysis.false_indicators.append(col_name[0])
-                    logger.info(
-                        f"=> found look ahead bias in column "
-                        f"{col_name[0]}. "
-                        f"{str(self_value)} != {str(other_value)}"
-                    )
+                if self_value != other_value:
+                    if not self.current_analysis.false_indicators.__contains__(col_name[0]):
+                        self.current_analysis.false_indicators.append(col_name[0])
+                        logger.info(
+                            f"=> found look ahead bias in column "
+                            f"{col_name[0]}. "
+                            f"{str(self_value)} != {str(other_value)}"
+                        )
 
     def prepare_data(self, varholder: VarHolder, pairs_to_load: list[DataFrame]):
         if "freqai" in self.local_config and "identifier" in self.local_config["freqai"]:
@@ -128,7 +128,7 @@ class LookaheadAnalysis(BaseAnalysis):
         varholder.timeframe = backtesting.timeframe
 
         temp_indicators = backtesting.strategy.advise_all_indicators(varholder.data)
-        filled_indicators = {}
+        filled_indicators = dict()
         for pair, dataframe in temp_indicators.items():
             filled_indicators[pair] = backtesting.strategy.ft_advise_signals(
                 dataframe, {"pair": pair}
@@ -200,8 +200,8 @@ class LookaheadAnalysis(BaseAnalysis):
         self.analyze_indicators(self.full_varHolder, self.entry_varHolders[idx], result_row["pair"])
         self.analyze_indicators(self.full_varHolder, self.exit_varHolders[idx], result_row["pair"])
 
-    def start(self, progress: CustomProgress) -> None:
-        self.fill_full_varholder()
+    def start(self) -> None:
+        super().start()
 
         reduce_verbosity_for_bias_tester()
 
@@ -223,9 +223,6 @@ class LookaheadAnalysis(BaseAnalysis):
 
         # now we loop through all signals
         # starting from the same datetime to avoid miss-reports of bias
-        trade_task = progress.add_task(
-            "Analyzing trades", total=min(found_signals, self.targeted_trade_amount)
-        )
         for idx, result_row in self.full_varHolder.result["results"].iterrows():
             if self.current_analysis.total_signals == self.targeted_trade_amount:
                 logger.info(f"Found targeted trade amount = {self.targeted_trade_amount} signals.")
@@ -237,7 +234,7 @@ class LookaheadAnalysis(BaseAnalysis):
                     f"minimum trade amount = {self.minimum_trade_amount}. "
                     f"Exiting this lookahead-analysis"
                 )
-                return
+                return None
             if "force_exit" in result_row["exit_reason"]:
                 logger.info(
                     f"found force-exit in pair: {result_row['pair']}, "
@@ -252,7 +249,6 @@ class LookaheadAnalysis(BaseAnalysis):
                 continue
 
             self.analyze_row(idx, result_row)
-            progress.update(trade_task, advance=1)
 
         if len(self.entry_varHolders) < self.minimum_trade_amount:
             logger.info(

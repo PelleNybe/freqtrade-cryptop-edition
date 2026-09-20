@@ -1,18 +1,36 @@
+import re
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, Field, RootModel, SerializeAsAny, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    Field,
+    RootModel,
+    SerializeAsAny,
+    field_validator,
+    model_validator,
+)
 
-from freqtrade.constants import DL_DATA_TIMEFRAMES, IntOrInf
+from freqtrade.configuration.timerange import TimeRange
+from freqtrade.constants import DL_DATA_TIMEFRAMES, PAIR_REGEX, IntOrInf
 from freqtrade.enums import MarginMode, OrderTypeValues, SignalDirection, TradingMode
+from freqtrade.exceptions import ConfigurationError
 from freqtrade.ft_types import AnnotationType, ValidExchangesType
-from freqtrade.rpc.api_server.webserver_bgwork import JOB_CATEGORIES, ProgressTask
+from freqtrade.rpc.api_server.webserver_bgwork import ProgressTask
 
 
 class ExchangeModePayloadMixin(BaseModel):
     trading_mode: TradingMode | None = None
     margin_mode: MarginMode | None = None
-    exchange: str | None = None
+    exchange: str | None = Field(None, max_length=50)
+
+    @field_validator("exchange")
+    @classmethod
+    def validate_exchange(cls, v):
+        if v is not None and not re.match(r"^[a-zA-Z0-9_-]+$", v):
+            raise ValueError(f"Invalid exchange name: {v}")
+        return v
 
 
 class Ping(BaseModel):
@@ -41,7 +59,7 @@ class BgJobStarted(StatusMsg):
 
 class BackgroundTaskStatus(BaseModel):
     job_id: str
-    job_category: JOB_CATEGORIES
+    job_category: str
     status: str
     running: bool
     progress: float | None = None
@@ -237,7 +255,6 @@ class ShowConfig(BaseModel):
     margin_mode: str
     short_allowed: bool
     stake_currency: str
-    proxy_coin: str | None = None
     stake_amount: str
     available_capital: float | None = None
     stake_currency_decimals: int
@@ -256,7 +273,6 @@ class ShowConfig(BaseModel):
     timeframe_ms: int
     timeframe_min: int
     exchange: str
-    demo_trading: bool
     strategy: str | None = None
     force_entry_enable: bool
     exit_pricing: dict[str, Any]
@@ -403,15 +419,29 @@ class Locks(BaseModel):
 
 
 class LocksPayload(BaseModel):
-    pair: str
-    side: str = "*"  # Default to both sides
+    pair: str = Field(..., max_length=50)
+    side: str = Field("*", max_length=25)  # Default to both sides
     until: AwareDatetime
-    reason: str | None = None
+    reason: str | None = Field(None, max_length=255)
+
+    @field_validator("pair")
+    @classmethod
+    def validate_pair(cls, v):
+        if not re.match(PAIR_REGEX, v):
+            raise ValueError(f"Invalid pair name: {v}")
+        return v
 
 
 class DeleteLockRequest(BaseModel):
-    pair: str | None = None
+    pair: str | None = Field(None, max_length=50)
     lockid: int | None = None
+
+    @field_validator("pair")
+    @classmethod
+    def validate_pair(cls, v):
+        if v is not None and not re.match(PAIR_REGEX, v):
+            raise ValueError(f"Invalid pair name: {v}")
+        return v
 
 
 class Logs(BaseModel):
@@ -420,24 +450,77 @@ class Logs(BaseModel):
 
 
 class ForceEnterPayload(BaseModel):
-    pair: str
+    pair: str = Field(..., max_length=50)
     side: SignalDirection = SignalDirection.LONG
-    price: float | None = None
+    price: float | None = Field(None, gt=0)
     ordertype: OrderTypeValues | None = None
-    stakeamount: float | None = None
-    entry_tag: str | None = None
+    stakeamount: float | None = Field(None, gt=0)
+    entry_tag: str | None = Field(None, max_length=255)
     leverage: float | None = None
+
+    @field_validator("pair")
+    @classmethod
+    def validate_pair(cls, v):
+        if not re.match(PAIR_REGEX, v):
+            raise ValueError(f"Invalid pair name: {v}")
+        return v
+
+    @field_validator("entry_tag")
+    @classmethod
+    def validate_entry_tag(cls, v):
+        if v is not None and not re.match(r"^[a-zA-Z0-9_.-]+$", v):
+            raise ValueError(f"Invalid entry tag: {v}")
+        return v
 
 
 class ForceExitPayload(BaseModel):
     tradeid: str | int
     ordertype: OrderTypeValues | None = None
-    amount: float | None = None
-    price: float | None = None
+    amount: float | None = Field(None, gt=0)
+    price: float | None = Field(None, gt=0)
+
+
+class WebhookPayload(BaseModel):
+    token: str = Field(..., max_length=255)
+    pair: str = Field(..., max_length=50)
+    action: str = Field(..., max_length=20)
+    price: float | None = Field(None, gt=0)
+    ordertype: OrderTypeValues | None = None
+    stake_amount: float | None = Field(None, gt=0)
+    leverage: float | None = None
+    entry_tag: str | None = Field(None, max_length=255)
+    side: SignalDirection | None = None
+
+    @field_validator("pair")
+    @classmethod
+    def validate_pair(cls, v):
+        if not re.match(PAIR_REGEX, v):
+            raise ValueError(f"Invalid pair name: {v}")
+        return v
+
+
+BLACKLIST_PAIR_REGEX = r"^[a-zA-Z0-9/_:?*.-]+$"
+
+
+def validate_wildcard_pair(v: list[str]) -> list[str]:
+    for pair in v:
+        if len(pair) > 50:
+            raise ValueError(f"Pair name too long: {pair}")
+        if not re.match(BLACKLIST_PAIR_REGEX, pair):
+            raise ValueError(f"Invalid pair name: {pair}")
+        # Additional check to ensure no parenthesis are used (redundant with regex but explicit)
+        if "(" in pair or ")" in pair:
+            raise ValueError(f"Invalid pair name: {pair}")
+    return v
 
 
 class BlacklistPayload(BaseModel):
     blacklist: list[str]
+
+    @field_validator("blacklist")
+    @classmethod
+    def validate_blacklist(cls, v):
+        return validate_wildcard_pair(v)
 
 
 class BlacklistResponse(BaseModel):
@@ -504,18 +587,60 @@ class PairListsResponse(BaseModel):
 class PairListsPayload(ExchangeModePayloadMixin, BaseModel):
     pairlists: list[dict[str, Any]]
     blacklist: list[str]
-    stake_currency: str
+    stake_currency: str = Field(..., max_length=20)
+
+    @field_validator("blacklist")
+    @classmethod
+    def validate_blacklist(cls, v):
+        return validate_wildcard_pair(v)
+
+    @field_validator("stake_currency")
+    @classmethod
+    def validate_stake_currency(cls, v):
+        if not re.match(r"^[a-zA-Z0-9-]+$", v):
+            raise ValueError(f"Invalid stake currency: {v}")
+        return v
 
 
 class DownloadDataPayload(ExchangeModePayloadMixin, BaseModel):
     pairs: list[str]
     timeframes: list[str] | None = DL_DATA_TIMEFRAMES
-    days: int | None = None
+    days: int | None = Field(None, gt=0)
     timerange: str | None = None
     erase: bool = False
     download_trades: bool = False
     candle_types: list[str] | None = None
     prepend_data: bool = False
+
+    @field_validator("pairs")
+    @classmethod
+    def validate_pairs(cls, v):
+        for pair in v:
+            if len(pair) > 50:
+                raise ValueError(f"Pair name too long: {pair}")
+            if not re.match(PAIR_REGEX, pair):
+                raise ValueError(f"Invalid pair name: {pair}")
+        return v
+
+    @field_validator("timeframes")
+    @classmethod
+    def validate_timeframes(cls, v):
+        if v is None:
+            return v
+        for timeframe in v:
+            if not re.match(r"^[0-9]+[mhdwMy]$", timeframe):
+                raise ValueError(f"Invalid timeframe: {timeframe}")
+        return v
+
+    @field_validator("timerange")
+    @classmethod
+    def validate_timerange(cls, v):
+        if v and v != "None":
+            try:
+                TimeRange.parse_timerange(v)
+            except ConfigurationError as e:
+                raise ValueError(str(e)) from e
+        return v
 
     @model_validator(mode="before")
     def check_mutually_exclusive(cls, values):
@@ -591,10 +716,24 @@ class AvailablePairs(BaseModel):
 
 
 class PairCandlesRequest(BaseModel):
-    pair: str
+    pair: str = Field(..., max_length=50)
     timeframe: str
-    limit: int | None = None
+    limit: int | None = Field(None, gt=0, le=1500)
     columns: list[str] | None = None
+
+    @field_validator("pair")
+    @classmethod
+    def validate_pair(cls, v):
+        if not re.match(PAIR_REGEX, v):
+            raise ValueError(f"Invalid pair name: {v}")
+        return v
+
+    @field_validator("timeframe")
+    @classmethod
+    def validate_timeframe(cls, v):
+        if not re.match(r"^[0-9]+[mhdwMy]$", v):
+            raise ValueError(f"Invalid timeframe: {v}")
+        return v
 
 
 class PairHistoryRequest(PairCandlesRequest, ExchangeModePayloadMixin):
@@ -602,6 +741,16 @@ class PairHistoryRequest(PairCandlesRequest, ExchangeModePayloadMixin):
     strategy: str | None = None
     freqaimodel: str | None = None
     live_mode: bool = False
+
+    @field_validator("timerange")
+    @classmethod
+    def validate_timerange(cls, v):
+        if v and v != "None":
+            try:
+                TimeRange.parse_timerange(v)
+            except ConfigurationError as e:
+                raise ValueError(str(e)) from e
+        return v
 
 
 class PairHistory(BaseModel):
@@ -681,73 +830,9 @@ class BacktestMarketChange(BaseModel):
     data: list[list[Any]]
 
 
-class LookaheadAnalysisRequest(BaseModel):
-    strategy: str
-    timeframe: str | None = None
-    timerange: str | None = None
-    minimum_trade_amount: int = 10
-    targeted_trade_amount: int = 20
-    lookahead_allow_limit_orders: bool = False
-
-
-class LookaheadAnalysisResultEntry(BaseModel):
-    strategy: str
-    has_bias: bool
-    total_signals: int
-    biased_entry_signals: int
-    biased_exit_signals: int
-    biased_indicators: list[str]
-
-
-class LookaheadAnalysisResponse(BaseModel):
-    status: str
-    running: bool
-    status_msg: str
-    result: LookaheadAnalysisResultEntry | None = None
-
-
-class RecursiveAnalysisRequest(BaseModel):
-    strategy: str
-    timeframe: str | None = None
-    timerange: str | None = None
-    startup_candle: list[int] | None = None
-
-
-class RecursiveAnalysisResultEntry(BaseModel):
-    strategy: str
-    startup_candles: list[int] = Field(description="The startup candle counts that were tested.")
-    strategy_scc: int | None = Field(
-        default=None,
-        description="The strategy's own startup_candle_count, if it could be determined.",
-    )
-    results: dict[str, dict[str, float]] = Field(
-        description=(
-            "Per-indicator variance keyed by indicator name, then by startup candle count. "
-            "e.g. { 'rsi': { '199': 0.123, '200': float('nan'), ... }, 'macd': { ... }, ... } }. "
-        )
-    )
-
-
-class RecursiveAnalysisResponse(BaseModel):
-    status: str
-    running: bool
-    status_msg: str
-    result: RecursiveAnalysisResultEntry | None = None
-
-
-class WalletHistoryResponse(BaseModel):
-    columns: list[str]
-    length: int
-    data: list[list[Any]]
-    # start date of the effectively captured data
-    # Before this date, it's based on a reconstructed wallet history
-    capture_start_ts: int | None = None
-
-
 class MarketRequest(ExchangeModePayloadMixin, BaseModel):
     base: str | None = None
     quote: str | None = None
-    include_inactive: bool = False
 
 
 class MarketModel(BaseModel):
@@ -756,7 +841,6 @@ class MarketModel(BaseModel):
     quote: str
     spot: bool
     swap: bool
-    active: bool = False  # Assume false if the field is missing.
 
 
 class MarketResponse(BaseModel):
@@ -764,25 +848,12 @@ class MarketResponse(BaseModel):
     exchange_id: str
 
 
-class CpuInfo(BaseModel):
-    cpu: int
-    pct: float
-
-
 class SysInfo(BaseModel):
-    """Information about the system running the bot based on psutil output/measurements
-
-    Note: cpu_pct is deprecated and may be removed in a future release. Use cpu_load instead.
-    """
-
-    cpu_pct: list[float] = Field(
-        default=[], deprecated=True, description="Use cpu_load object instead"
-    )
-    cpu_load: list[CpuInfo]
-    cpu_load_avg: dict[str, float]
-    cpu_count: int = Field(description="Number of logical CPUs as provided by psutil")
-    cpu_avg: float = Field(description="Average CPU load across all cores as provided by psutil")
-    ram_pct: float = Field(description="RAM usage percentage as provided by psutil")
+    cpu_pct: list[float]
+    ram_pct: float
+    cpu_temp: float | None = None
+    disk_read_bytes: int | None = None
+    disk_write_bytes: int | None = None
 
 
 class Health(BaseModel):

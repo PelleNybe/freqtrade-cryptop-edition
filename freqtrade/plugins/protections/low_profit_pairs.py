@@ -1,10 +1,14 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from freqtrade.constants import Config, LongShort
 from freqtrade.persistence import Trade
 from freqtrade.plugins.protections import IProtection, ProtectionReturn
+
+
+if TYPE_CHECKING:
+    from freqtrade.wallets import Wallets
 
 
 logger = logging.getLogger(__name__)
@@ -14,8 +18,10 @@ class LowProfitPairs(IProtection):
     has_global_stop: bool = False
     has_local_stop: bool = True
 
-    def __init__(self, config: Config, protection_config: dict[str, Any]) -> None:
-        super().__init__(config, protection_config)
+    def __init__(
+        self, config: Config, protection_config: dict[str, Any], wallets: "Wallets | None" = None
+    ) -> None:
+        super().__init__(config, protection_config, wallets)
 
         self._trade_limit = protection_config.get("trade_limit", 1)
         self._required_profit = protection_config.get("required_profit", 0.0)
@@ -81,9 +87,7 @@ class LowProfitPairs(IProtection):
 
         return None
 
-    def global_stop(
-        self, date_now: datetime, side: LongShort, starting_balance: float
-    ) -> ProtectionReturn | None:
+    def global_stop(self, date_now: datetime, side: LongShort) -> ProtectionReturn | None:
         """
         Stops trading (position entering) for all pairs
         This must evaluate to true for the whole period of the "cooldown period".
@@ -93,7 +97,7 @@ class LowProfitPairs(IProtection):
         return None
 
     def stop_per_pair(
-        self, pair: str, date_now: datetime, side: LongShort, starting_balance: float
+        self, pair: str, date_now: datetime, side: LongShort
     ) -> ProtectionReturn | None:
         """
         Stops trading (position entering) for this pair

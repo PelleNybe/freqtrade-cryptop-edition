@@ -45,6 +45,27 @@ class RPCManager:
 
             self.registered_modules.append(Webhook(self._rpc, config))
 
+        # EDGE OPTIMIZATION: Enable MQTT
+        if config.get("mqtt", {}).get("enabled", False):
+            logger.info("Enabling rpc.mqtt ...")
+            from freqtrade.rpc.mqtt import MQTT
+
+            self.registered_modules.append(MQTT(freqtrade))
+
+        # EDGE OPTIMIZATION: Enable Prometheus
+        if config.get("prometheus", {}).get("enabled", False):
+            logger.info("Enabling rpc.prometheus ...")
+            from freqtrade.rpc.prometheus import PrometheusExporter
+
+            self.registered_modules.append(PrometheusExporter(freqtrade))
+
+        # EDGE OPTIMIZATION: Enable Apprise Omni-Notifications
+        if config.get("apprise", {}).get("enabled", False):
+            logger.info("Enabling rpc.apprise ...")
+            from freqtrade.rpc.apprise_notification import AppriseNotification
+
+            self.registered_modules.append(AppriseNotification(freqtrade))
+
         # Enable local rest api server for cmd line control
         if config.get("api_server", {}).get("enabled", False):
             logger.info("Enabling rpc.api_server")
@@ -59,7 +80,7 @@ class RPCManager:
         logger.info("Cleaning up rpc modules ...")
         while self.registered_modules:
             mod = self.registered_modules.pop()
-            logger.info(f"Cleaning up rpc.{mod.name} ...")
+            logger.info("Cleaning up rpc.%s ...", mod.name)
             mod.cleanup()
             del mod
 
@@ -73,7 +94,7 @@ class RPCManager:
         }
         """
         if msg.get("type") not in NO_ECHO_MESSAGES:
-            logger.info(f"Sending rpc message: {msg}")
+            logger.info("Sending rpc message: %s", msg)
         for mod in self.registered_modules:
             logger.debug("Forwarding message to rpc.%s", mod.name)
             try:
@@ -81,7 +102,7 @@ class RPCManager:
             except NotImplementedError:
                 logger.error(f"Message type '{msg['type']}' not implemented by handler {mod.name}.")
             except Exception:
-                logger.exception(f"Exception occurred within RPC module {mod.name}")
+                logger.exception("Exception occurred within RPC module %s", mod.name)
 
     def process_msg_queue(self, queue: deque) -> None:
         """
@@ -89,7 +110,7 @@ class RPCManager:
         """
         while queue:
             msg = queue.popleft()
-            logger.info(f"Sending rpc strategy_msg: {msg}")
+            logger.info("Sending rpc strategy_msg: %s", msg)
             for mod in self.registered_modules:
                 if mod._config.get(mod.name, {}).get("allow_custom_messages", False):
                     mod.send_msg(
@@ -114,8 +135,6 @@ class RPCManager:
         trailing_stop = config["trailing_stop"]
         timeframe = config["timeframe"]
         exchange_name = config["exchange"]["name"]
-        if config["exchange"].get("demo_trading"):
-            exchange_name += " (demo trading)"
         strategy_name = config.get("strategy", "")
         pos_adjust_enabled = "On" if config["position_adjustment_enable"] else "Off"
         self.send_msg(

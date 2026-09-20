@@ -13,7 +13,12 @@ async def favicon():
     return FileResponse(str(Path(__file__).parent / "ui/favicon.ico"))
 
 
-@router_ui.get("/fallback_file.html")
+@router_ui.get("/logo.png", include_in_schema=False)
+async def logo():
+    return FileResponse(str(Path(__file__).parent / "ui/logo.png"))
+
+
+@router_ui.get("/fallback_file.html", include_in_schema=False)
 async def fallback():
     return FileResponse(str(Path(__file__).parent / "ui/fallback_file.html"))
 
@@ -35,10 +40,10 @@ async def index_html(rest_of_path: str):
     """
     Emulate path fallback to index.html.
     """
-    if rest_of_path.startswith(("api", ".")):
+    if rest_of_path.startswith("api") or rest_of_path.startswith("."):
         raise HTTPException(status_code=404, detail="Not Found")
-    uibase = (Path(__file__).parent / "ui/installed/").resolve()
-    filename = (uibase / rest_of_path).resolve()
+    uibase = Path(__file__).parent / "ui/installed/"
+    filename = uibase / rest_of_path
     # It's security relevant to check "relative_to".
     # Without this, Directory-traversal is possible.
     media_type: str | None = None

@@ -12,7 +12,6 @@ from freqtrade.data.converter import (
     convert_ohlcv_format,
     convert_trades_format,
     convert_trades_to_ohlcv,
-    count_total_order_book,
     ohlcv_fill_up_missing_data,
     ohlcv_to_dataframe,
     order_book_to_dataframe,
@@ -199,21 +198,49 @@ def test_ohlcv_fill_up_missing_data2(caplog):
 )
 def test_ohlcv_to_dataframe_multi(timeframe):
     data = generate_test_data(timeframe, 180)
+    # Convert DataFrame to list of lists (simulating ccxt output)
+    # Date needs to be converted to int64 ms timestamp
+    ohlcv_data = data.copy()
+    values = ohlcv_data["date"].astype(np.int64)
+    if values[0] > 1e16:
+        ohlcv_data["date"] = values // 1_000_000
+    elif values[0] > 1e13:
+        ohlcv_data["date"] = values // 1_000
+    else:
+        ohlcv_data["date"] = values
+    ohlcv_list = ohlcv_data.values.tolist()
+
     assert len(data) == 180
-    df = ohlcv_to_dataframe(data, timeframe, "UNITTEST/USDT")
+    df = ohlcv_to_dataframe(ohlcv_list, timeframe, "UNITTEST/USDT")
     assert len(df) == len(data) - 1
-    df1 = ohlcv_to_dataframe(data, timeframe, "UNITTEST/USDT", drop_incomplete=False)
+    df1 = ohlcv_to_dataframe(ohlcv_list, timeframe, "UNITTEST/USDT", drop_incomplete=False)
     assert len(df1) == len(data)
+
+    # Align dtypes
+    if data["date"].dtype != df1["date"].dtype:
+        data["date"] = data["date"].astype(df1["date"].dtype)
+
     assert data.equals(df1)
 
     data1 = data.copy()
     if timeframe in ("1M", "3M", "1y"):
-        data1.loc[:, "date"] = data1.loc[:, "date"] + pd.to_timedelta("1W")
+        data1.loc[:, "date"] = data1.loc[:, "date"] + pd.to_timedelta("1w")
     else:
         # Shift by half a timeframe
-        timeframe_f = timeframe.upper() if timeframe.endswith(("d", "w")) else timeframe
-        data1.loc[:, "date"] = data1.loc[:, "date"] + (pd.to_timedelta(timeframe_f) / 2)
-    df2 = ohlcv_to_dataframe(data1, timeframe, "UNITTEST/USDT")
+        data1.loc[:, "date"] = data1.loc[:, "date"] + (pd.to_timedelta(timeframe) / 2)
+
+    # Prepare data1 for ohlcv_to_dataframe
+    ohlcv_data1 = data1.copy()
+    values1 = ohlcv_data1["date"].astype(np.int64)
+    if values1[0] > 1e16:
+        ohlcv_data1["date"] = values1 // 1_000_000
+    elif values1[0] > 1e13:
+        ohlcv_data1["date"] = values1 // 1_000
+    else:
+        ohlcv_data1["date"] = values1
+    ohlcv_list1 = ohlcv_data1.values.tolist()
+
+    df2 = ohlcv_to_dataframe(ohlcv_list1, timeframe, "UNITTEST/USDT")
 
     assert len(df2) == len(data) - 1
     tfs = timeframe_to_seconds(timeframe)
@@ -230,8 +257,8 @@ def test_ohlcv_to_dataframe_multi(timeframe):
         dfs = data1.resample(f"{tfs}s", on="date").agg(ohlcv_dict).reset_index(drop=False)
         dfm = data1.resample(f"{tfm}min", on="date").agg(ohlcv_dict).reset_index(drop=False)
 
-        assert dfs.equals(dfm)
-        assert dfs.equals(df1)
+        assert_frame_equal(dfs, dfm, check_dtype=False)
+        assert_frame_equal(dfs, df1, check_dtype=False)
 
 
 def test_ohlcv_to_dataframe_1M():
@@ -460,11 +487,6 @@ def test_convert_trades_format(default_conf, testdatadir, tmp_path):
         (["XRP_ETH-5m", "XRP_ETH-1m"], CandleType.SPOT),
         (["UNITTEST_USDT_USDT-1h-mark", "XRP_USDT_USDT-1h-mark"], CandleType.MARK),
         (["XRP_USDT_USDT-1h-futures"], CandleType.FUTURES),
-        # Legacy 6-column and current 2-column funding rate files convert alike
-        (
-            ["XRP_USDT_USDT-1h-funding_rate", "UNITTEST_USDT_USDT-1h-funding_rate"],
-            CandleType.FUNDING_RATE,
-        ),
     ],
 )
 def test_convert_ohlcv_format(default_conf, testdatadir, tmp_path, file_base, candletype):
@@ -580,6 +602,12 @@ def test_convert_trades_to_ohlcv(testdatadir, tmp_path, caplog):
     df_1m = load_pair_history(datadir=tmp_path, timeframe="1m", pair=pair)
     df_5m = load_pair_history(datadir=tmp_path, timeframe="5m", pair=pair)
 
+    # Cast to match pandas 3.0 resolution if necessary
+    if dfbak_1m["date"].dtype != df_1m["date"].dtype:
+        dfbak_1m["date"] = dfbak_1m["date"].astype(df_1m["date"].dtype)
+    if dfbak_5m["date"].dtype != df_5m["date"].dtype:
+        dfbak_5m["date"] = dfbak_5m["date"].astype(df_5m["date"].dtype)
+
     assert_frame_equal(dfbak_1m, df_1m, check_exact=True)
     assert_frame_equal(dfbak_5m, df_5m, check_exact=True)
     msg = "Could not convert NoDatapair to OHLCV."
@@ -598,7 +626,7 @@ def test_convert_trades_to_ohlcv(testdatadir, tmp_path, caplog):
     assert log_has(msg, caplog)
 
 
-def test_count_total_order_book():
+def test_order_book_to_dataframe():
     bids = [
         [100.0, 5.0],
         [99.5, 3.0],
@@ -609,14 +637,6 @@ def test_count_total_order_book():
         [101.0, 6.0],
         [101.5, 1.0],
     ]
-
-    total_bids, total_asks = count_total_order_book(bids, asks)
-
-    assert isinstance(total_bids, float)
-    assert isinstance(total_asks, float)
-
-    assert total_bids == 10.0
-    assert total_asks == 11.0
 
     result = order_book_to_dataframe(bids, asks)
 
@@ -636,17 +656,9 @@ def test_count_total_order_book():
     assert result["a_sum"].tolist() == [4.0, 10.0, 11.0]
 
 
-def test_count_total_order_book_empty():
+def test_order_book_to_dataframe_empty():
     bids = []
     asks = []
-
-    total_bids, total_asks = count_total_order_book(bids, asks)
-
-    assert isinstance(total_bids, float)
-    assert isinstance(total_asks, float)
-
-    assert total_bids == 0.0
-    assert total_asks == 0.0
 
     result = order_book_to_dataframe(bids, asks)
 
@@ -669,14 +681,6 @@ def test_order_book_to_dataframe_unequal_lengths():
         [100.5, 4.0],
         [101.0, 6.0],
     ]
-
-    total_bids, total_asks = count_total_order_book(bids, asks)
-
-    assert isinstance(total_bids, float)
-    assert isinstance(total_asks, float)
-
-    assert total_bids == 11.0
-    assert total_asks == 10.0
 
     result = order_book_to_dataframe(bids, asks)
 

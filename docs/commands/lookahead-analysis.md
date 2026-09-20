@@ -29,9 +29,7 @@ options:
   -i, --timeframe TIMEFRAME
                         Specify timeframe (`1m`, `5m`, `30m`, `1h`, `1d`).
   --timerange TIMERANGE
-                        Limit action to a specific timerange. Format:
-                        (`yyyymmdd` or `yyyymmddThhmm` - e.g.
-                        `20240101-20240201T1200`).
+                        Specify what timerange of data to use.
   --data-format-ohlcv {json,jsongz,feather,parquet}
                         Storage format for downloaded candle (OHLCV) data.
                         (default: `feather`).
@@ -64,7 +62,10 @@ options:
   --strategy-list STRATEGY_LIST [STRATEGY_LIST ...]
                         Provide a space-separated list of strategies to
                         backtest. Please note that timeframe needs to be set
-                        either in config or via command line.
+                        either in config or via command line. When using this
+                        together with `--export trades`, the strategy-name is
+                        injected into the filename (so `backtest-data.json`
+                        becomes `backtest-data-SampleStrategy.json`
   --export {none,trades,signals}
                         Export backtest results (default: trades).
   --backtest-filename, --export-filename PATH

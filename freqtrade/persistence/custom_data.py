@@ -112,22 +112,9 @@ class CustomDataWrapper:
             CustomDataWrapper.custom_data = []
 
     @staticmethod
-    def delete_custom_data(trade_id: int, key: str | None = None) -> None:
-        if CustomDataWrapper.use_db:
-            filters = [_CustomData.ft_trade_id == trade_id]
-            if key is not None:
-                filters.append(_CustomData.cd_key.ilike(key))
-            _CustomData.session.query(_CustomData).filter(*filters).delete()
-            _CustomData.session.commit()
-        else:
-            CustomDataWrapper.custom_data = [
-                data_entry
-                for data_entry in CustomDataWrapper.custom_data
-                if not (
-                    data_entry.ft_trade_id == trade_id
-                    and (key is None or data_entry.cd_key.casefold() == key.casefold())
-                )
-            ]
+    def delete_custom_data(trade_id: int) -> None:
+        _CustomData.session.query(_CustomData).filter(_CustomData.ft_trade_id == trade_id).delete()
+        _CustomData.session.commit()
 
     @staticmethod
     def get_custom_data(*, trade_id: int, key: str | None = None) -> list[_CustomData]:

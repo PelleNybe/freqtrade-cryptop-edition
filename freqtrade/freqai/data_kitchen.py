@@ -1,3 +1,4 @@
+import copy
 import inspect
 import logging
 import random
@@ -11,7 +12,7 @@ import numpy.typing as npt
 import pandas as pd
 import psutil
 from datasieve.pipeline import Pipeline
-from pandas import DataFrame, Series
+from pandas import DataFrame
 from sklearn.model_selection import train_test_split
 
 from freqtrade.configuration import TimeRange
@@ -22,6 +23,8 @@ from freqtrade.exchange import timeframe_to_seconds
 from freqtrade.strategy import merge_informative_pair
 from freqtrade.strategy.interface import IStrategy
 
+
+pd.set_option("future.no_silent_downcasting", True)
 
 SECONDS_IN_DAY = 86400
 SECONDS_IN_HOUR = 3600
@@ -119,6 +122,8 @@ class FreqaiDataKitchen:
         self.data_path = Path(
             self.full_path / f"sub-train-{pair.split('/')[0]}_{trained_timestamp}"
         )
+
+        return
 
     def make_train_test_datasets(
         self, filtered_dataframe: DataFrame, labels: DataFrame
@@ -234,14 +239,16 @@ class FreqaiDataKitchen:
         filtered_df = filtered_df.replace([np.inf, -np.inf], np.nan)
 
         drop_index = pd.isnull(filtered_df).any(axis=1)  # get the rows that have NaNs,
-        drop_index = drop_index.astype(int)
+        drop_index = drop_index.replace(True, 1).replace(False, 0).infer_objects(copy=False)
         if training_filter:
             # we don't care about total row number (total no. datapoints) in training, we only care
             # about removing any row with NaNs
             # if labels has multiple columns (user wants to train multiple modelEs), we detect here
             labels = unfiltered_df.filter(label_list or [], axis=1)
             drop_index_labels = pd.isnull(labels).any(axis=1)
-            drop_index_labels = drop_index_labels.astype(int)
+            drop_index_labels = (
+                drop_index_labels.replace(True, 1).replace(False, 0).infer_objects(copy=False)
+            )
             dates = unfiltered_df["date"]
             filtered_df = filtered_df[
                 (drop_index == 0) & (drop_index_labels == 0)
@@ -276,11 +283,11 @@ class FreqaiDataKitchen:
             # so now we use do_predict to avoid any prediction based on a NaN
             drop_index = pd.isnull(filtered_df).any(axis=1)
             self.data["filter_drop_index_prediction"] = drop_index
-            filtered_df.fillna(0, inplace=True)
+            filtered_df = filtered_df.fillna(0)
             # replacing all NaNs with zeros to avoid issues in 'prediction', but any prediction
             # that was based on a single NaN is ultimately protected from buys with do_predict
             drop_index = ~drop_index
-            self.do_predict = np.array(drop_index.astype(int))
+            self.do_predict = np.array(drop_index.replace(True, 1).replace(False, 0))
             if (len(self.do_predict) - self.do_predict.sum()) > 0:
                 logger.info(
                     "dropped %s of %s prediction data points due to NaNs.",
@@ -335,8 +342,8 @@ class FreqaiDataKitchen:
         config_timerange = TimeRange.parse_timerange(self.config["timerange"])
         if config_timerange.stopts == 0:
             config_timerange.stopts = int(datetime.now(tz=UTC).timestamp())
-        timerange_train = full_timerange.copy()
-        timerange_backtest = full_timerange.copy()
+        timerange_train = copy.deepcopy(full_timerange)
+        timerange_backtest = copy.deepcopy(full_timerange)
 
         tr_training_list = []
         tr_backtesting_list = []
@@ -351,16 +358,17 @@ class FreqaiDataKitchen:
 
             first = False
             tr_training_list.append(timerange_train.timerange_str)
-            tr_training_list_timerange.append(timerange_train.copy())
+            tr_training_list_timerange.append(copy.deepcopy(timerange_train))
 
             # associated backtest period
             timerange_backtest.startts = timerange_train.stopts
             timerange_backtest.stopts = timerange_backtest.startts + int(bt_period)
 
-            timerange_backtest.stopts = min(timerange_backtest.stopts, config_timerange.stopts)
+            if timerange_backtest.stopts > config_timerange.stopts:
+                timerange_backtest.stopts = config_timerange.stopts
 
             tr_backtesting_list.append(timerange_backtest.timerange_str)
-            tr_backtesting_list_timerange.append(timerange_backtest.copy())
+            tr_backtesting_list_timerange.append(copy.deepcopy(timerange_backtest))
 
             # ensure we are predicting on exactly same amount of data as requested by user defined
             #  --timerange
@@ -420,34 +428,28 @@ class FreqaiDataKitchen:
         Get backtest prediction from current backtest period
         """
 
-        # Build dict first and construct DataFrame once to avoid
-        # column-by-column assignment which causes DataFrame fragmentation
-        # and PerformanceWarning on large prediction sets.
-        append_dict: dict[str, Series | npt.ArrayLike] = {}
-
+        append_df = DataFrame()
         for label in predictions.columns:
-            append_dict[label] = predictions[label]
-            if pd.api.types.is_string_dtype(predictions[label].dtype):
+            append_df[label] = predictions[label]
+            if append_df[label].dtype == object:
                 continue
             if "labels_mean" in self.data and label in self.data["labels_mean"]:
-                append_dict[f"{label}_mean"] = self.data["labels_mean"][label]
+                append_df[f"{label}_mean"] = self.data["labels_mean"][label]
             if "labels_std" in self.data and label in self.data["labels_std"]:
-                append_dict[f"{label}_std"] = self.data["labels_std"][label]
+                append_df[f"{label}_std"] = self.data["labels_std"][label]
 
         for extra_col in self.data["extra_returns_per_train"]:
-            append_dict[f"{extra_col}"] = self.data["extra_returns_per_train"][extra_col]
+            append_df[f"{extra_col}"] = self.data["extra_returns_per_train"][extra_col]
 
-        append_dict["do_predict"] = do_predict
+        append_df["do_predict"] = do_predict
         if self.freqai_config["feature_parameters"].get("DI_threshold", 0) > 0:
-            append_dict["DI_values"] = self.DI_values
-
-        append_df = DataFrame(append_dict)
+            append_df["DI_values"] = self.DI_values
 
         user_cols = [col for col in dataframe_backtest.columns if col.startswith("%%")]
         cols = ["date"]
         cols.extend(user_cols)
 
-        dataframe_backtest.reset_index(drop=True, inplace=True)
+        dataframe_backtest = dataframe_backtest.reset_index(drop=True)
         merged_df = pd.concat([dataframe_backtest[cols], append_df], axis=1)
         return merged_df
 
@@ -474,6 +476,8 @@ class FreqaiDataKitchen:
             self.full_df.columns
         ].fillna(value=0)
         self.full_df = DataFrame()
+
+        return
 
     def create_fulltimerange(self, backtest_tr: str, backtest_period_days: int) -> str:
         if not isinstance(backtest_period_days, int):
@@ -541,7 +545,8 @@ class FreqaiDataKitchen:
         max_tf_seconds = 0
         for tf in timeframes:
             secs = timeframe_to_seconds(tf)
-            max_tf_seconds = max(max_tf_seconds, secs)
+            if secs > max_tf_seconds:
+                max_tf_seconds = secs
 
         # We notice that users like to use exotic indicators where
         # they do not know the required timeperiod. Here we include a factor
@@ -589,8 +594,8 @@ class FreqaiDataKitchen:
         self.model_filename = f"cb_{coin.lower()}_{timestamp_id}"
 
     def set_all_pairs(self) -> None:
-        self.all_pairs = (
-            self.freqai_config["feature_parameters"].get("include_corr_pairlist", []).copy()
+        self.all_pairs = copy.deepcopy(
+            self.freqai_config["feature_parameters"].get("include_corr_pairlist", [])
         )
         for pair in self.config.get("exchange", "").get("pair_whitelist"):
             if pair not in self.all_pairs:
@@ -757,15 +762,12 @@ class FreqaiDataKitchen:
             informative_df = self.merge_features(informative_df, generic_df, tf, tf, suffix)
 
             indicators = [col for col in informative_df if col.startswith("%")]
-            shifted_parts = []
             for n in range(self.freqai_config["feature_parameters"]["include_shifted_candles"] + 1):
                 if n == 0:
                     continue
                 df_shift = informative_df[indicators].shift(n)
                 df_shift = df_shift.add_suffix("_shift-" + str(n))
-                shifted_parts.append(df_shift)
-            if shifted_parts:
-                informative_df = pd.concat([informative_df] + shifted_parts, axis=1)
+                informative_df = pd.concat((informative_df, df_shift), axis=1)
 
             dataframe = self.merge_features(
                 dataframe.copy(), informative_df, self.config["timeframe"], tf, f"{pair}_{tf}"
@@ -871,7 +873,9 @@ class FreqaiDataKitchen:
 
         self.data["labels_mean"], self.data["labels_std"] = {}, {}
         for label in self.data_dictionary["train_labels"].columns:
-            if pd.api.types.is_string_dtype(self.data_dictionary["train_labels"][label].dtype):
+            if not pd.api.types.is_numeric_dtype(self.data_dictionary["train_labels"][label]):
+                continue
+            if not pd.api.types.is_numeric_dtype(self.data_dictionary["train_labels"][label]):
                 continue
             f = spy.stats.norm.fit(self.data_dictionary["train_labels"][label])
             self.data["labels_mean"][label], self.data["labels_std"][label] = f[0], f[1]
@@ -879,6 +883,8 @@ class FreqaiDataKitchen:
         # in case targets are classifications
         for label in self.unique_class_list:
             self.data["labels_mean"][label], self.data["labels_std"][label] = 0, 0
+
+        return
 
     def remove_features_from_df(self, dataframe: DataFrame) -> DataFrame:
         """
@@ -895,7 +901,7 @@ class FreqaiDataKitchen:
         self.find_labels(dataframe)
 
         for key in self.label_list:
-            if pd.api.types.is_string_dtype(dataframe[key].dtype):
+            if not pd.api.types.is_numeric_dtype(dataframe[key]):
                 self.unique_classes[key] = dataframe[key].dropna().unique()
 
         if self.unique_classes:
@@ -980,7 +986,7 @@ class FreqaiDataKitchen:
         are populated.
 
         The main example use is when predicting maxima and minima, the argrelextrema
-        function cannot know the maxima/minima at the edges of the timerange. To improve
+        function  cannot know the maxima/minima at the edges of the timerange. To improve
         model accuracy, it is best to compute argrelextrema on the full timerange
         and then use this function to cut off the edges (buffer) by the kernel.
 

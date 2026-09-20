@@ -1,5 +1,5 @@
 import logging
-from contextlib import asynccontextmanager
+import secrets
 from ipaddress import ip_address
 from typing import Any
 
@@ -101,19 +101,6 @@ class FTJSONResponse(JSONResponse):
         return orjson.dumps(content, option=orjson.OPT_SERIALIZE_NUMPY)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup logic
-    if not ApiServer._message_stream:
-        # Creates the MessageStream class on startup so it has access to the same event loop
-        # as uvicorn
-        ApiServer._message_stream = MessageStream()
-    yield
-    # Shutdown logic
-    if ApiServer._message_stream:
-        ApiServer._message_stream = None
-
-
 class ApiServer(RPCHandler):
     __instance = None
     __initialized = False
@@ -145,13 +132,32 @@ class ApiServer(RPCHandler):
 
         api_config = self._config["api_server"]
 
+        cors_origins = api_config.get("CORS_origins", [])
+        if "*" in cors_origins:
+            logger.warning(
+                "SECURITY WARNING - `CORS_origins` contains a wildcard ('*'). "
+                "This allows any website to access your API. "
+                "Please restrict this to your actual domain(s)."
+            )
+
+        if api_config.get("jwt_secret_key", "super-secret") in ("super-secret", "somethingrandom"):
+            api_config["jwt_secret_key"] = secrets.token_urlsafe(32)
+            logger.warning(
+                "SECURITY WARNING - `jwt_secret_key` is not set or default. "
+                "Using a generated random key. Login sessions will not persist across restarts."
+            )
+        elif len(api_config.get("jwt_secret_key", "")) < 32:
+            logger.warning(
+                "SECURITY WARNING - `jwt_secret_key` is too short (less than 32 characters). "
+                "Please use a stronger key."
+            )
+
         self.app = FastAPI(
-            title="Freqtrade API",
+            title="Crypto P's Magical Crypto Circus API",
             docs_url="/docs" if api_config.get("enable_openapi", False) else None,
             redoc_url=None,
             default_response_class=FTJSONResponse,
             openapi_tags=_OPENAPI_TAGS,
-            lifespan=lifespan,
         )
         self.configure_app(self.app, self._config)
         self.start_api()
@@ -196,11 +202,21 @@ class ApiServer(RPCHandler):
     def handle_rpc_exception(self, request, exc):
         logger.error(f"API Error calling: {exc}")
         return JSONResponse(
-            status_code=502, content={"error": f"Error querying {request.url.path}: {exc.message}"}
+            status_code=502,
+            content={
+                "error": f"Error querying {request.url.path}: {exc.message}",
+                "status": "error",
+            },
+        )
+
+    def handle_generic_exception(self, request, exc):
+        logger.error(f"API Error calling: {exc}", exc_info=exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal Server Error", "status": "error"},
         )
 
     def configure_app(self, app: FastAPI, config):
-        from freqtrade.rpc.api_server.api_analysis import router_lookahead, router_recursive
         from freqtrade.rpc.api_server.api_auth import http_basic_or_jwt_token, router_login
         from freqtrade.rpc.api_server.api_background_tasks import router as api_bg_tasks
         from freqtrade.rpc.api_server.api_backtest import router as api_backtest
@@ -264,31 +280,61 @@ class ApiServer(RPCHandler):
             tags=["Download-data", "Webserver"],
             dependencies=[Depends(http_basic_or_jwt_token), Depends(is_webserver_mode)],
         )
-        app.include_router(
-            router_lookahead,
-            prefix="/api/v1",
-            tags=["Lookahead Analysis", "Webserver"],
-            dependencies=[Depends(http_basic_or_jwt_token), Depends(is_webserver_mode)],
-        )
-        app.include_router(
-            router_recursive,
-            prefix="/api/v1",
-            tags=["Recursive Analysis", "Webserver"],
-            dependencies=[Depends(http_basic_or_jwt_token), Depends(is_webserver_mode)],
-        )
         app.include_router(ws_router, prefix="/api/v1")
         # UI Router MUST be last!
         app.include_router(router_ui, prefix="")
+
+        @app.middleware("http")
+        async def add_security_headers(request, call_next):
+            response = await call_next(request)
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; base-uri 'self'; form-action 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; "
+                "frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content"
+            )
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+            response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+            response.headers["Permissions-Policy"] = (
+                "geolocation=(), microphone=(), camera=(), payment=(), "
+                "usb=(), vr=(), display-capture=(), serial=(), autoplay=(), "
+                "fullscreen=(), sync-xhr=()"
+            )
+            response.headers["Referrer-Policy"] = "same-origin"
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+            return response
 
         app.add_middleware(
             CORSMiddleware,
             allow_origins=config["api_server"].get("CORS_origins", []),
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            allow_headers=["Authorization", "Content-Type", "Accept"],
         )
 
         app.add_exception_handler(RPCException, self.handle_rpc_exception)
+        app.add_exception_handler(Exception, self.handle_generic_exception)
+        app.add_event_handler(event_type="startup", func=self._api_startup_event)
+        app.add_event_handler(event_type="shutdown", func=self._api_shutdown_event)
+
+    async def _api_startup_event(self):
+        """
+        Creates the MessageStream class on startup
+        so it has access to the same event loop
+        as uvicorn
+        """
+        if not ApiServer._message_stream:
+            ApiServer._message_stream = MessageStream()
+
+    async def _api_shutdown_event(self):
+        """
+        Removes the MessageStream class on shutdown
+        """
+        if ApiServer._message_stream:
+            ApiServer._message_stream = None
 
     def start_api(self):
         """
@@ -330,8 +376,9 @@ class ApiServer(RPCHandler):
             host=rest_ip,
             use_colors=False,
             log_config=None,
-            access_log=verbosity != "error",
+            access_log=True if verbosity != "error" else False,
             ws_ping_interval=None,  # We do this explicitly ourselves
+            server_header=False,
         )
         try:
             self._server = UvicornServer(uvconfig)

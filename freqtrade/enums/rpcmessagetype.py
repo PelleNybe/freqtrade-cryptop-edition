@@ -18,8 +18,6 @@ class RPCMessageType(StrEnum):
     PROTECTION_TRIGGER = "protection_trigger"
     PROTECTION_TRIGGER_GLOBAL = "protection_trigger_global"
 
-    LIQUIDATION_WARNING = "liquidation_warning"
-
     STRATEGY_MSG = "strategy_msg"
 
     WHITELIST = "whitelist"

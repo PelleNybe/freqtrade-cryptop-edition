@@ -1,5 +1,5 @@
 # pragma pylint: disable=missing-docstring, protected-access, invalid-name
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from math import isnan, nan
 from unittest.mock import MagicMock
 
@@ -30,7 +30,6 @@ from freqtrade.exchange import (
 )
 from freqtrade.exchange.check_exchange import check_exchange
 from freqtrade.exchange.exchange_utils import _exchange_has_helper
-from freqtrade.util import dt_from_ts, dt_now, dt_utc
 from tests.conftest import log_has_re
 
 
@@ -120,7 +119,7 @@ def test_check_exchange(default_conf, caplog) -> None:
 
 
 def test_date_minus_candles():
-    date = dt_utc(2019, 8, 12, 13, 25, 0)
+    date = datetime(2019, 8, 12, 13, 25, 0, tzinfo=UTC)
 
     assert date_minus_candles("5m", 3, date) == date - timedelta(minutes=15)
     assert date_minus_candles("5m", 5, date) == date - timedelta(minutes=25)
@@ -170,59 +169,59 @@ def test_timeframe_to_resample_freq(timeframe, expected):
 
 def test_timeframe_to_prev_date():
     # 2019-08-12 13:22:08
-    date = dt_utc(2019, 8, 12, 13, 22, 8)
+    date = datetime.fromtimestamp(1565616128, tz=UTC)
 
     tf_list = [
         # 5m -> 2019-08-12 13:20:00
-        ("5m", dt_utc(2019, 8, 12, 13, 20, 0)),
+        ("5m", datetime(2019, 8, 12, 13, 20, 0, tzinfo=UTC)),
         # 10m -> 2019-08-12 13:20:00
-        ("10m", dt_utc(2019, 8, 12, 13, 20, 0)),
+        ("10m", datetime(2019, 8, 12, 13, 20, 0, tzinfo=UTC)),
         # 1h -> 2019-08-12 13:00:00
-        ("1h", dt_utc(2019, 8, 12, 13, 00, 0)),
+        ("1h", datetime(2019, 8, 12, 13, 00, 0, tzinfo=UTC)),
         # 2h -> 2019-08-12 12:00:00
-        ("2h", dt_utc(2019, 8, 12, 12, 00, 0)),
+        ("2h", datetime(2019, 8, 12, 12, 00, 0, tzinfo=UTC)),
         # 4h -> 2019-08-12 12:00:00
-        ("4h", dt_utc(2019, 8, 12, 12, 00, 0)),
+        ("4h", datetime(2019, 8, 12, 12, 00, 0, tzinfo=UTC)),
         # 1d -> 2019-08-12 00:00:00
-        ("1d", dt_utc(2019, 8, 12, 00, 00, 0)),
+        ("1d", datetime(2019, 8, 12, 00, 00, 0, tzinfo=UTC)),
     ]
     for interval, result in tf_list:
         assert timeframe_to_prev_date(interval, date) == result
 
-    date = dt_now()
+    date = datetime.now(tz=UTC)
     assert timeframe_to_prev_date("5m") < date
     # Does not round
-    time = dt_utc(2019, 8, 12, 13, 20, 0)
+    time = datetime(2019, 8, 12, 13, 20, 0, tzinfo=UTC)
     assert timeframe_to_prev_date("5m", time) == time
-    time = dt_utc(2019, 8, 12, 13, 0, 0)
+    time = datetime(2019, 8, 12, 13, 0, 0, tzinfo=UTC)
     assert timeframe_to_prev_date("1h", time) == time
 
 
 def test_timeframe_to_next_date():
     # 2019-08-12 13:22:08
-    date = dt_from_ts(1565616128)
+    date = datetime.fromtimestamp(1565616128, tz=UTC)
     tf_list = [
         # 5m -> 2019-08-12 13:25:00
-        ("5m", dt_utc(2019, 8, 12, 13, 25, 0)),
+        ("5m", datetime(2019, 8, 12, 13, 25, 0, tzinfo=UTC)),
         # 10m -> 2019-08-12 13:30:00
-        ("10m", dt_utc(2019, 8, 12, 13, 30, 0)),
+        ("10m", datetime(2019, 8, 12, 13, 30, 0, tzinfo=UTC)),
         # 1h -> 2019-08-12 14:00:00
-        ("1h", dt_utc(2019, 8, 12, 14, 00, 0)),
+        ("1h", datetime(2019, 8, 12, 14, 00, 0, tzinfo=UTC)),
         # 2h -> 2019-08-12 14:00:00
-        ("2h", dt_utc(2019, 8, 12, 14, 00, 0)),
+        ("2h", datetime(2019, 8, 12, 14, 00, 0, tzinfo=UTC)),
         # 4h -> 2019-08-12 14:00:00
-        ("4h", dt_utc(2019, 8, 12, 16, 00, 0)),
+        ("4h", datetime(2019, 8, 12, 16, 00, 0, tzinfo=UTC)),
         # 1d -> 2019-08-13 00:00:00
-        ("1d", dt_utc(2019, 8, 13, 0, 0, 0)),
+        ("1d", datetime(2019, 8, 13, 0, 0, 0, tzinfo=UTC)),
     ]
 
     for interval, result in tf_list:
         assert timeframe_to_next_date(interval, date) == result
 
-    date = dt_now()
+    date = datetime.now(tz=UTC)
     assert timeframe_to_next_date("5m") > date
 
-    date = dt_utc(2019, 8, 12, 13, 30, 0)
+    date = datetime(2019, 8, 12, 13, 30, 0, tzinfo=UTC)
     assert timeframe_to_next_date("5m", date) == date + timedelta(minutes=5)
 
 
@@ -375,10 +374,10 @@ def test_price_to_precision(price, precision_mode, precision, expected, rounding
     "amount,precision,precision_mode,contract_size,expected",
     [
         (1.17, 1.0, 4, 0.01, 1.17),  # Tick size
-        (1.17, 1.0, 2, 0.01, 1.17),
-        (1.16, 1.0, 4, 0.01, 1.16),
-        (1.16, 1.0, 2, 0.01, 1.16),
-        (1.13, 1.0, 2, 0.01, 1.13),
+        (1.17, 1.0, 2, 0.01, 1.17),  #
+        (1.16, 1.0, 4, 0.01, 1.16),  #
+        (1.16, 1.0, 2, 0.01, 1.16),  #
+        (1.13, 1.0, 2, 0.01, 1.13),  #
         (10.988, 1.0, 2, 10, 10),
         (10.988, 1.0, 4, 10, 10),
     ],

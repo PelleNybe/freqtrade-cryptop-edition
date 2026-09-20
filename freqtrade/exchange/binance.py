@@ -7,7 +7,7 @@ from pathlib import Path
 import ccxt
 from pandas import DataFrame
 
-from freqtrade.candle_columns import get_candle_columns
+from freqtrade.constants import DEFAULT_DATAFRAME_COLUMNS
 from freqtrade.enums import TRADE_MODES, CandleType, MarginMode, PriceType, RunMode, TradingMode
 from freqtrade.exceptions import DDosProtection, OperationalException, TemporaryError
 from freqtrade.exchange import Exchange
@@ -46,15 +46,9 @@ class Binance(Exchange):
         "l2_limit_range": [5, 10, 20, 50, 100, 500, 1000],
         "ws_enabled": True,
         "has_delisting": True,
-        # Demo trading
-        # https://www.binance.com/en/support/faq/detail/9be58f73e5e14338809e3b705b9687dd
-        # Intentionally Disabled as it's a separate market - not a simulated live market.
-        "supports_demo_trading": False,
     }
     _ft_has_futures: FtHas = {
-        "ohlcv_candle_limit": 499,
         "funding_fee_candle_limit": 1000,
-        "open_interest_candle_limit": 500,
         "stoploss_order_types": {"limit": "stop", "market": "stop_market"},
         "stoploss_blocks_assets": False,  # Stoploss orders do not block assets
         "stoploss_query_requires_stop_flag": True,
@@ -69,8 +63,6 @@ class Binance(Exchange):
             PriceType.MARK: "MARK_PRICE",
         },
         "ws_enabled": False,
-        # ccxt maps "total" to assets[].marginBalance (= walletBalance + unrealizedProfit)
-        "balance_includes_unrealized_pnl": True,
         "proxy_coin_mapping": {
             "BNFCR": "USDC",
             "BFUSD": "USDT",
@@ -168,7 +160,7 @@ class Binance(Exchange):
         """
         Overwrite to introduce "fast new pair" functionality by detecting the pair's listing date
         Does not work for other exchanges, which don't return the earliest data when called with "0"
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
+        :param candle_type: Any of the enum CandleType (must match trading mode!)
         """
         if is_new_pair and candle_type in (CandleType.SPOT, CandleType.FUTURES, CandleType.MARK):
             with self._loop_lock:
@@ -187,7 +179,7 @@ class Binance(Exchange):
                         f"No available candle-data for {pair} before "
                         f"{dt_from_ts(until_ms).isoformat()}"
                     )
-                    return DataFrame(columns=get_candle_columns(candle_type))
+                    return DataFrame(columns=DEFAULT_DATAFRAME_COLUMNS)
 
         if (
             not self._can_use_data_download_fast
@@ -527,14 +519,15 @@ class Binance(Exchange):
         :return: int: delisting time None if not delisting
         """
 
-        if not pair or self._config["runmode"] != RunMode.LIVE:
+        if not pair or not self._config["runmode"] == RunMode.LIVE:
             # Endpoint only works in live mode as it requires API keys
             return None
 
         cache = self._spot_delist_schedule_cache
 
-        if not refresh and (delist_time := cache.get(pair, None)):
-            return delist_time
+        if not refresh:
+            if delist_time := cache.get(pair, None):
+                return delist_time
 
         delist_schedule = self._get_spot_delist_schedule()
 
@@ -561,7 +554,7 @@ class Binance(Exchange):
 
 
 class Binanceusdm(Binance):
-    """Binance USDM Exchange
+    """Binacne USDM Exchange
     Same as Binance - only futures trading is supported (via ccxt).
 
     Not actually necessary, binance should be preferred.

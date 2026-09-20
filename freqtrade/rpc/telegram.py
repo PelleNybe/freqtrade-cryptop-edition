@@ -11,7 +11,7 @@ import re
 from collections.abc import Callable, Coroutine
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import partial, wraps
 from html import escape
 from itertools import chain
@@ -41,13 +41,7 @@ from freqtrade.exceptions import OperationalException
 from freqtrade.misc import chunks, plural
 from freqtrade.persistence import Trade
 from freqtrade.rpc import RPC, RPCException, RPCHandler
-from freqtrade.rpc.rpc_types import (
-    RPCEntryMsg,
-    RPCExitMsg,
-    RPCLiquidationWarningMsg,
-    RPCOrderMsg,
-    RPCSendMsg,
-)
+from freqtrade.rpc.rpc_types import RPCEntryMsg, RPCExitMsg, RPCOrderMsg, RPCSendMsg
 from freqtrade.util import (
     dt_from_ts,
     dt_humanize_delta,
@@ -57,7 +51,6 @@ from freqtrade.util import (
     format_pct,
     round_value,
 )
-from freqtrade.util.datetime_helpers import dt_now
 
 
 MAX_MESSAGE_LENGTH = MessageLimit.MAX_TEXT_LENGTH
@@ -121,11 +114,11 @@ def authorized_only(command_handler: Callable[..., Coroutine[Any, Any, None]]):
         if cchat_id != chat_id:
             logger.info(f"Rejected unauthorized message from: {cchat_id}")
             return None
-        topic_id = self._config["telegram"].get("topic_id")
-        if topic_id is not None and str(ctopic_id) != topic_id:
-            # This can be quite common in multi-topic environments.
-            logger.debug(f"Rejected message from wrong channel: {cchat_id}, {ctopic_id}")
-            return None
+        if (topic_id := self._config["telegram"].get("topic_id")) is not None:
+            if str(ctopic_id) != topic_id:
+                # This can be quite common in multi-topic environments.
+                logger.debug(f"Rejected message from wrong channel: {cchat_id}, {ctopic_id}")
+                return None
 
         authorized = self._config["telegram"].get("authorized_users", None)
         if authorized is not None and from_user_id not in authorized:
@@ -392,7 +385,7 @@ class Telegram(RPCHandler):
         asyncio.run_coroutine_threadsafe(self._cleanup_telegram(), self._loop)
         self._thread.join()
 
-    def _exchange_from_msg(self, msg: RPCOrderMsg | RPCLiquidationWarningMsg) -> str:
+    def _exchange_from_msg(self, msg: RPCOrderMsg) -> str:
         """
         Extracts the exchange name from the given message.
         :param msg: The message to extract the exchange name from.
@@ -404,16 +397,17 @@ class Telegram(RPCHandler):
         candle_val = (
             self._config["telegram"].get("notification_settings", {}).get("show_candle", "off")
         )
-        if candle_val != "off" and candle_val == "ohlc":
-            analyzed_df, _ = self._rpc._freqtrade.dataprovider.get_analyzed_dataframe(
-                pair, self._config["timeframe"]
-            )
-            candle = analyzed_df.iloc[-1].squeeze() if len(analyzed_df) > 0 else None
-            if candle is not None:
-                return (
-                    f"*Candle OHLC*: `{candle['open']}, {candle['high']}, "
-                    f"{candle['low']}, {candle['close']}`\n"
+        if candle_val != "off":
+            if candle_val == "ohlc":
+                analyzed_df, _ = self._rpc._freqtrade.dataprovider.get_analyzed_dataframe(
+                    pair, self._config["timeframe"]
                 )
+                candle = analyzed_df.iloc[-1].squeeze() if len(analyzed_df) > 0 else None
+                if candle is not None:
+                    return (
+                        f"*Candle OHLC*: `{candle['open']}, {candle['high']}, "
+                        f"{candle['low']}, {candle['close']}`\n"
+                    )
 
         return ""
 
@@ -439,7 +433,8 @@ class Telegram(RPCHandler):
         message += self._add_analyzed_candle(msg["pair"])
         message += f"*Enter Tag:* `{msg['enter_tag']}`\n" if msg.get("enter_tag") else ""
         message += f"*Amount:* `{round_value(msg['amount'], 8)}`\n"
-        message += f"*Direction:* `{msg['direction']}"
+        direction_emoji = "🔴" if msg.get("direction", "").lower() == "short" else "🟢"
+        message += f"*Direction:* {direction_emoji} `{msg['direction']}"
         if msg.get("leverage") and msg.get("leverage", 1.0) != 1.0:
             message += f" ({msg['leverage']:.3g}x)"
         message += "`\n"
@@ -489,7 +484,7 @@ class Telegram(RPCHandler):
                 profit_prefix = "Sub "
                 cp_extra = (
                     f"*Final Profit:* `{format_pct(msg['final_profit_ratio'])} "
-                    f"({fmt_coin(msg['cumulative_profit'], msg['stake_currency'])}{cp_fiat})`\n"
+                    f"({msg['cumulative_profit']:.8f} {msg['quote_currency']}{cp_fiat})`\n"
                 )
             else:
                 exit_wording = f"Partially {exit_wording.lower()}"
@@ -508,7 +503,8 @@ class Telegram(RPCHandler):
             f"{cp_extra}"
             f"{enter_tag}"
             f"*Exit Reason:* `{msg['exit_reason']}`\n"
-            f"*Direction:* `{msg['direction']}"
+            f"*Direction:* {'🔴' if msg.get('direction', '').lower() == 'short' else '🟢'}"
+            f" `{msg['direction']}"
             f"{leverage_text}`\n"
             f"*Amount:* `{round_value(msg['amount'], 8)}`\n"
             f"*Open Rate:* `{fmt_coin2(msg['open_rate'], msg['quote_currency'])}`\n"
@@ -545,46 +541,6 @@ class Telegram(RPCHandler):
             profit_fiat_extra = f" / {profit_fiat:.3f} {fiat_currency}"
         return profit_fiat_extra
 
-    def _format_liquidation_warning_msg(self, msg: RPCLiquidationWarningMsg) -> str:
-        direction = msg["direction"]
-        if msg.get("leverage") and msg.get("leverage", 1.0) != 1.0:
-            direction += f" ({msg['leverage']:.3g}x)"
-
-        if msg["margin_mode"] == "cross":
-            single = msg["positions_at_risk"] == 1
-            headline = (
-                f"\N{WARNING SIGN} *{self._exchange_from_msg(msg)}:* "
-                f"{msg['positions_at_risk']} of {msg['open_positions']} positions "
-                f"{'is' if single else 'are'} approaching "
-                f"{'its' if single else 'their'} liquidation stop\n"
-                f"*Closest:* `{msg['pair']}` (#{msg['trade_id']})\n"
-            )
-            advice = (
-                "In cross margin all positions share the same collateral. Adding margin moves "
-                "the liquidation stop away from all of them - without it freqtrade will exit "
-                "each position as it reaches its own stop."
-            )
-        else:
-            headline = (
-                f"\N{WARNING SIGN} *{self._exchange_from_msg(msg)}:* "
-                f"`{msg['pair']}` (#{msg['trade_id']}) is approaching its liquidation stop\n"
-            )
-            advice = (
-                "In isolated margin this position's collateral is fixed - adding funds to "
-                "your account will not move its liquidation stop. Reduce or close the "
-                "position, or add margin to it directly on the exchange - freqtrade picks "
-                "the changed liquidation price up on the next order fill for this trade."
-            )
-
-        return (
-            headline + f"*Direction:* `{direction}`\n"
-            f"*Current Rate:* `{fmt_coin2(msg['current_rate'], msg['quote_currency'])}`\n"
-            f"*Liquidation Stop:* `{fmt_coin2(msg['liquidation_price'], msg['quote_currency'])}`\n"
-            f"*Remaining:* `{msg['remaining_ratio']:.2%}` of the price move the margin covers\n\n"
-            "This is freqtrade's own liquidation, placed ahead of the exchange's liquidation "
-            f"price by `liquidation_buffer` - it is not an exchange liquidation. {advice}"
-        )
-
     def compose_message(self, msg: RPCSendMsg) -> str | None:
         if msg["type"] == RPCMessageType.ENTRY or msg["type"] == RPCMessageType.ENTRY_FILL:
             message = self._format_entry_msg(msg)
@@ -615,9 +571,6 @@ class Telegram(RPCHandler):
                 f"*All pairs* will be locked until `{msg['lock_end_time']}`."
             )
 
-        elif msg["type"] == RPCMessageType.LIQUIDATION_WARNING:
-            message = self._format_liquidation_warning_msg(msg)
-
         elif msg["type"] == RPCMessageType.STATUS:
             message = f"*Status:* `{msg['status']}`"
 
@@ -628,7 +581,7 @@ class Telegram(RPCHandler):
             message = f"\N{WARNING SIGN} *ERROR:* \n {msg['status']}"
 
         elif msg["type"] == RPCMessageType.STARTUP:
-            message = f"{msg['status']}"
+            message = f"🚀 *Freqtrade - Crypto P Edition* Started!\n{msg['status']}"
         elif msg["type"] == RPCMessageType.STRATEGY_MSG:
             message = f"{msg['msg']}"
         else:
@@ -685,11 +638,11 @@ class Telegram(RPCHandler):
         if float(msg["profit_ratio"]) >= 0.05:
             return "\N{ROCKET}"
         elif float(msg["profit_ratio"]) >= 0.0:
-            return "\N{EIGHT SPOKED ASTERISK}"
+            return "🟢"
         elif msg["exit_reason"] == "stop_loss":
-            return "\N{WARNING SIGN}"
+            return "\N{OCTAGONAL SIGN}"
         else:
-            return "\N{CROSS MARK}"
+            return "🔴"
 
     def _prepare_order_details(self, filled_orders: list, quote_currency: str, is_open: bool):
         """
@@ -791,6 +744,113 @@ class Telegram(RPCHandler):
         else:
             await self._status_msg(update, context)
 
+    def _get_status_header(self, r: dict[str, Any]) -> list[str]:
+        direction_emoji = "🔻" if r.get("is_short") else "🔺"
+        return [f"{direction_emoji} *{r['pair']}* (#{r['trade_id']})"]
+
+    def _get_status_profit(self, r: dict[str, Any], position_adjust: bool) -> list[str]:
+        r["stake_amount_r"] = fmt_coin(r["stake_amount"], r["quote_currency"])
+        r["max_stake_amount_r"] = fmt_coin(
+            r["max_stake_amount"] or r["stake_amount"], r["quote_currency"]
+        )
+        r["profit_abs_r"] = fmt_coin(r["profit_abs"], r["quote_currency"])
+        profit_emoji = "🟢" if r["profit_ratio"] >= 0 else "🔴"
+
+        lines = [
+            f"*Profit:* {profit_emoji} *{format_pct(r['profit_ratio'])}* `({r['profit_abs_r']})`"
+            + (f" `({r['leverage']}x)`" if r.get("leverage") else ""),
+            f"*Amount:* `{r['amount']} ({r['stake_amount_r']})`"
+            + (f" / `{r['max_stake_amount_r']}`" if position_adjust else ""),
+        ]
+        return lines
+
+    def _get_status_prices(self, r: dict[str, Any]) -> list[str]:
+        lines = []
+        price_line = f"📉 *Entry:* `{round_value(r['open_rate'], 8)}`"
+        if r["is_open"]:
+            price_line += f" ➜ *Current:* `{round_value(r['current_rate'], 8)}`"
+        else:
+            price_line += f" ➜ *Close:* `{round_value(r['close_rate'], 8)}`"
+        lines.append(price_line)
+        return lines
+
+    def _get_status_details(
+        self, r: dict[str, Any], position_adjust: bool, max_entries: int
+    ) -> list[str]:
+        lines = []
+        r["open_date_hum"] = dt_humanize_delta(r["open_date"])
+
+        if r["is_open"]:
+            lines.append(" ")
+            details = f"⏱️ *Age:* `{r['open_date_hum']}`"
+            if r["enter_tag"]:
+                details += f" | 🏷️ *Tag:* `{r['enter_tag']}`"
+            lines.append(details)
+
+        if r.get("exit_reason"):
+            lines.append(f"🚪 *Exit:* `{r['exit_reason']}`")
+
+        if position_adjust:
+            max_buy_str = f"/{max_entries + 1}" if (max_entries > 0) else ""
+            lines.extend(
+                [
+                    f"*Entries:* `{r['nr_of_successful_entries']}{max_buy_str}`",
+                    f"*Exits:* `{r['nr_of_successful_exits']}`",
+                ]
+            )
+
+        if r["is_open"]:
+            r["realized_profit_r"] = fmt_coin(r["realized_profit"], r["quote_currency"])
+            r["total_profit_abs_r"] = fmt_coin(r["total_profit_abs"], r["quote_currency"])
+
+            if r.get("realized_profit") is not None and r.get("realized_profit_ratio") is not None:
+                lines.append(
+                    f"*Realized Profit:* `{format_pct(r['realized_profit_ratio'])} "
+                    f"({r['realized_profit_r']})`"
+                )
+            if r.get("total_profit_ratio") is not None:
+                lines.append(
+                    f"*Total Profit:* `{format_pct(r['total_profit_ratio'])} "
+                    f"({r['total_profit_abs_r']})`"
+                )
+
+            lines.append(" ")
+            if liquidation := r.get("liquidation_price"):
+                lines.append(f"*Liquidation:* `{round_value(liquidation, 8)}`")
+
+            if (
+                r["stop_loss_abs"] != r["initial_stop_loss_abs"]
+                and r["initial_stop_loss_ratio"] is not None
+            ):
+                lines.append(
+                    f"*Initial Stoploss:* `{r['initial_stop_loss_abs']:.8f}` "
+                    f"`({format_pct(r['initial_stop_loss_ratio'])})`"
+                )
+
+            lines.append(
+                f"*Stoploss:* `{round_value(r['stop_loss_abs'], 8)}` "
+                + (f"`({format_pct(r['stop_loss_ratio'])})`" if r["stop_loss_ratio"] else "")
+            )
+            lines.append(
+                f"*Stoploss distance:* `{round_value(r['stoploss_current_dist'], 8)}` "
+                f"`({format_pct(r['stoploss_current_dist_ratio'])})`"
+            )
+            if open_orders := r.get("open_orders"):
+                lines.append(
+                    f"*Open Order:* `{open_orders}`"
+                    + (f"- `{r['exit_order_status']}`" if r["exit_order_status"] else "")
+                )
+        return lines
+
+    def _get_status_msg_lines(
+        self, r: dict[str, Any], position_adjust: bool, max_entries: int
+    ) -> list[str]:
+        lines = self._get_status_header(r)
+        lines.extend(self._get_status_profit(r, position_adjust))
+        lines.extend(self._get_status_prices(r))
+        lines.extend(self._get_status_details(r, position_adjust, max_entries))
+        return lines
+
     async def _status_msg(self, update: Update, context: CallbackContext) -> None:
         """
         handler for `/status` and `/status <id>`.
@@ -806,100 +866,7 @@ class Telegram(RPCHandler):
         position_adjust = self._config.get("position_adjustment_enable", False)
         max_entries = self._config.get("max_entry_position_adjustment", -1)
         for r in results:
-            r["open_date_hum"] = dt_humanize_delta(r["open_date"])
-
-            r["stake_amount_r"] = fmt_coin(r["stake_amount"], r["quote_currency"])
-            r["max_stake_amount_r"] = fmt_coin(
-                r["max_stake_amount"] or r["stake_amount"], r["quote_currency"]
-            )
-            r["profit_abs_r"] = fmt_coin(r["profit_abs"], r["quote_currency"])
-            r["realized_profit_r"] = fmt_coin(r["realized_profit"], r["quote_currency"])
-            r["total_profit_abs_r"] = fmt_coin(r["total_profit_abs"], r["quote_currency"])
-            lines = [
-                f"*Trade ID:* `{r['trade_id']}`"
-                + (f" `(since {r['open_date_hum']})`" if r["is_open"] else ""),
-                f"*Current Pair:* {r['pair']}",
-                (
-                    f"*Direction:* {'`Short`' if r.get('is_short') else '`Long`'}"
-                    + (f" ` ({r['leverage']}x)`" if r.get("leverage") else "")
-                ),
-                f"*Amount:* `{r['amount']} ({r['stake_amount_r']})`",
-                f"*Total invested:* `{r['max_stake_amount_r']}`" if position_adjust else "",
-                f"*Enter Tag:* `{r['enter_tag']}`" if r["enter_tag"] else "",
-                f"*Exit Reason:* `{r['exit_reason']}`" if r.get("exit_reason") else "",
-            ]
-
-            if position_adjust:
-                max_buy_str = f"/{max_entries + 1}" if (max_entries > 0) else ""
-                lines.extend(
-                    [
-                        f"*Number of Entries:* `{r['nr_of_successful_entries']}{max_buy_str}`",
-                        f"*Number of Exits:* `{r['nr_of_successful_exits']}`",
-                    ]
-                )
-
-            lines.extend(
-                [
-                    f"*Open Rate:* `{round_value(r['open_rate'], 8)}`",
-                    f"*Close Rate:* `{round_value(r['close_rate'], 8)}`" if r["close_rate"] else "",
-                    f"*Open Date:* `{r['open_date']}`",
-                    f"*Close Date:* `{r['close_date']}`" if r["close_date"] else "",
-                    (
-                        f" \n*Current Rate:* `{round_value(r['current_rate'], 8)}`"
-                        if r["is_open"]
-                        else ""
-                    ),
-                    ("*Unrealized Profit:* " if r["is_open"] else "*Close Profit: *")
-                    + f"`{format_pct(r['profit_ratio'])}` `({r['profit_abs_r']})`",
-                ]
-            )
-
-            if r["is_open"]:
-                if (
-                    r.get("realized_profit") is not None
-                    and r.get("realized_profit_ratio") is not None
-                ):
-                    lines.append(
-                        f"*Realized Profit:* `{format_pct(r['realized_profit_ratio'])} "
-                        f"({r['realized_profit_r']})`"
-                    )
-                if r.get("total_profit_ratio") is not None:
-                    lines.append(
-                        f"*Total Profit:* `{format_pct(r['total_profit_ratio'])} "
-                        f"({r['total_profit_abs_r']})`"
-                    )
-
-                # Append empty line to improve readability
-                lines.append(" ")
-                # Adding liquidation only if it is not None
-                if liquidation := r.get("liquidation_price"):
-                    lines.append(f"*Liquidation:* `{round_value(liquidation, 8)}`")
-
-                if (
-                    r["stop_loss_abs"] != r["initial_stop_loss_abs"]
-                    and r["initial_stop_loss_ratio"] is not None
-                ):
-                    # Adding initial stoploss only if it is different from stoploss
-                    lines.append(
-                        f"*Initial Stoploss:* `{round_value(r['initial_stop_loss_abs'], 8)}` "
-                        f"`({format_pct(r['initial_stop_loss_ratio'])})`"
-                    )
-
-                # Adding stoploss and stoploss percentage only if it is not None
-                lines.append(
-                    f"*Stoploss:* `{round_value(r['stop_loss_abs'], 8)}` "
-                    + (f"`({format_pct(r['stop_loss_ratio'])})`" if r["stop_loss_ratio"] else "")
-                )
-                lines.append(
-                    f"*Stoploss distance:* `{round_value(r['stoploss_current_dist'], 8)}` "
-                    f"`({format_pct(r['stoploss_current_dist_ratio'])})`"
-                )
-                if open_orders := r.get("open_orders"):
-                    lines.append(
-                        f"*Open Order:* `{open_orders}`"
-                        + (f"- `{r['exit_order_status']}`" if r["exit_order_status"] else "")
-                    )
-
+            lines = self._get_status_msg_lines(r, position_adjust, max_entries)
             await self.__send_status_msg(lines, r)
 
     async def __send_status_msg(self, lines: list[str], r: dict[str, Any]) -> None:
@@ -943,7 +910,7 @@ class Telegram(RPCHandler):
         As an example with 50 trades, there will be int(50/50 + 0.99) = 1 message
         """
         messages_count = max(int(len(statlist) / max_trades_per_msg + 0.99), 1)
-        for i in range(messages_count):
+        for i in range(0, messages_count):
             trades = statlist[i * max_trades_per_msg : (i + 1) * max_trades_per_msg]
             if show_total and i == messages_count - 1:
                 # append total line
@@ -1183,7 +1150,7 @@ class Telegram(RPCHandler):
         stake_cur = self._config["stake_currency"]
         fiat_disp_cur = self._config.get("fiat_display_currency", "")
 
-        start_date = dt_from_ts(0)
+        start_date = datetime.fromtimestamp(0)
         timescale = None
         try:
             if context.args:
@@ -1193,7 +1160,7 @@ class Telegram(RPCHandler):
                         direction = arg
                         context.args.pop(0)  # Remove direction from args
                 timescale = int(context.args[0]) - 1
-                today_start = datetime.combine(dt_now().date(), datetime.min.time())
+                today_start = datetime.combine(date.today(), datetime.min.time())
                 start_date = today_start - timedelta(days=timescale)
         except (TypeError, ValueError, IndexError):
             pass
@@ -1316,7 +1283,7 @@ class Telegram(RPCHandler):
         if self._config["dry_run"]:
             output += "*Warning:* Simulated balances in Dry Mode.\n"
         starting_cap = fmt_coin(result["starting_capital"], self._config["stake_currency"])
-        output += f"Starting capital: `{starting_cap}`"
+        output += f"💰 *Starting capital:* `{starting_cap}`"
         starting_cap_fiat = (
             fmt_coin(result["starting_capital_fiat"], self._config["fiat_display_currency"])
             if result["starting_capital_fiat"] > 0
@@ -1365,7 +1332,7 @@ class Telegram(RPCHandler):
 
         if total_dust_balance > 0:
             output += (
-                f"*{total_dust_currencies} Other "
+                f"🪙 *{total_dust_currencies} Other "
                 f"{plural(total_dust_currencies, 'Currency', 'Currencies')} "
                 f"(< {balance_dust_level} {result['stake']}):*\n"
                 f"\t`Est. {result['stake']}: "
@@ -1382,7 +1349,7 @@ class Telegram(RPCHandler):
             f"\t`{result['symbol']}: {value}`{fiat_val}\n" if result["symbol"] else ""
         )
         output += (
-            f"\n*Estimated Value{' (Bot managed assets only)' if not full_result else ''}*:\n"
+            f"\n💎 *Estimated Value{' (Bot managed assets only)' if not full_result else ''}*:\n"
             f"\t`{result['stake']}: {total_stake}`{stake_improve}\n"
             f"{fiat_estimated_value}"
         )
@@ -1400,7 +1367,7 @@ class Telegram(RPCHandler):
         :return: None
         """
         msg = self._rpc._rpc_start()
-        await self._send_msg(f"Status: `{msg['status']}`")
+        await self._send_msg(f"✅ *Status:* `{msg['status']}`")
 
     @authorized_only
     async def _stop(self, update: Update, context: CallbackContext) -> None:
@@ -1412,7 +1379,7 @@ class Telegram(RPCHandler):
         :return: None
         """
         msg = self._rpc._rpc_stop()
-        await self._send_msg(f"Status: `{msg['status']}`")
+        await self._send_msg(f"🛑 *Status:* `{msg['status']}`")
 
     @authorized_only
     async def _reload_config(self, update: Update, context: CallbackContext) -> None:
@@ -1424,7 +1391,7 @@ class Telegram(RPCHandler):
         :return: None
         """
         msg = self._rpc._rpc_reload_config()
-        await self._send_msg(f"Status: `{msg['status']}`")
+        await self._send_msg(f"🔄 *Status:* `{msg['status']}`")
 
     @authorized_only
     async def _pause(self, update: Update, context: CallbackContext) -> None:
@@ -1436,7 +1403,7 @@ class Telegram(RPCHandler):
         :return: None
         """
         msg = self._rpc._rpc_pause()
-        await self._send_msg(f"Status: `{msg['status']}`")
+        await self._send_msg(f"⏸️ *Status:* `{msg['status']}`")
 
     @authorized_only
     async def _reload_trade_from_exchange(self, update: Update, context: CallbackContext) -> None:
@@ -1447,7 +1414,7 @@ class Telegram(RPCHandler):
             raise RPCException("Trade-id not set.")
         trade_id = int(context.args[0])
         msg = self._rpc._rpc_reload_trade_from_exchange(trade_id)
-        await self._send_msg(f"Status: `{msg['status']}`")
+        await self._send_msg(f"🔄 *Status:* `{msg['status']}`")
 
     @authorized_only
     async def _force_exit(self, update: Update, context: CallbackContext) -> None:
@@ -1609,10 +1576,8 @@ class Telegram(RPCHandler):
             [
                 [
                     dt_humanize_delta(dt_from_ts(trade["close_timestamp"])),
-                    (
-                        f"{trade['pair']} (#{trade['trade_id']}"
-                        f"{(' ' + ('S' if trade['is_short'] else 'L')) if nonspot else ''})"
-                    ),
+                    f"{trade['pair']} (#{trade['trade_id']}"
+                    f"{(' ' + ('S' if trade['is_short'] else 'L')) if nonspot else ''})",
                     f"{format_pct(trade['close_profit'])} ({trade['close_profit_abs']})",
                 ]
                 for trade in trades["trades"]
@@ -1902,7 +1867,7 @@ class Telegram(RPCHandler):
 
     async def send_blacklist_msg(self, blacklist: dict):
         errmsgs = []
-        for error in blacklist["errors"].values():
+        for _, error in blacklist["errors"].items():
             errmsgs.append(f"Error: {error['error_msg']}")
         if errmsgs:
             await self._send_msg("\n".join(errmsgs))
@@ -1932,25 +1897,42 @@ class Telegram(RPCHandler):
         except (TypeError, ValueError, IndexError):
             limit = 10
         logs = RPC._rpc_get_logs(limit)["logs"]
-        msgs = ""
-        msg_template = "*{}* {}: {} \\- `{}`"
+        msgs_list: list[str] = []
+        current_len = 0
+
+        level_emojis = {
+            "CRITICAL": "🛑",
+            "ERROR": "🚨",
+            "WARNING": "⚠️",
+            "INFO": "ℹ️",  # noqa: RUF001
+            "DEBUG": "🐛",
+        }
+
+        msg_template = "*{}* {}: {} {} \\- `{}`"
         for logrec in logs:
+            level = logrec[3]
+            emoji = level_emojis.get(level, "🔹")
             msg = msg_template.format(
                 escape_markdown(logrec[0], version=2),
                 escape_markdown(logrec[2], version=2),
-                escape_markdown(logrec[3], version=2),
+                emoji,
+                escape_markdown(level, version=2),
                 escape_markdown(logrec[4], version=2),
             )
-            if len(msgs + msg) + 10 >= MAX_MESSAGE_LENGTH:
+            # Add 1 for the newline character
+            msg_len = len(msg) + 1
+            if current_len + msg_len + 10 >= MAX_MESSAGE_LENGTH:
                 # Send message immediately if it would become too long
-                await self._send_msg(msgs, parse_mode=ParseMode.MARKDOWN_V2)
-                msgs = msg + "\n"
+                await self._send_msg("".join(msgs_list), parse_mode=ParseMode.MARKDOWN_V2)
+                msgs_list = [msg + "\n"]
+                current_len = msg_len
             else:
                 # Append message to messages to send
-                msgs += msg + "\n"
+                msgs_list.append(msg + "\n")
+                current_len += msg_len
 
-        if msgs:
-            await self._send_msg(msgs, parse_mode=ParseMode.MARKDOWN_V2)
+        if msgs_list:
+            await self._send_msg("".join(msgs_list), parse_mode=ParseMode.MARKDOWN_V2)
 
     @authorized_only
     async def _help(self, update: Update, context: CallbackContext) -> None:
@@ -1962,80 +1944,52 @@ class Telegram(RPCHandler):
         :return: None
         """
         force_enter_text = (
-            "*/forcelong <pair> [<rate>]:* `Instantly buys the given pair. "
+            "   /forcelong <pair> [<rate>] - Instantly buys the given pair. "
             "Optionally takes a rate at which to buy "
-            "(only applies to limit orders).` \n"
+            "(only applies to limit orders). \n"
         )
         if self._rpc._freqtrade.trading_mode != TradingMode.SPOT:
             force_enter_text += (
-                "*/forceshort <pair> [<rate>]:* `Instantly shorts the given pair. "
+                "   /forceshort <pair> [<rate>] - Instantly shorts the given pair. "
                 "Optionally takes a rate at which to sell "
-                "(only applies to limit orders).` \n"
+                "(only applies to limit orders). \n"
             )
         message = (
-            "_Bot Control_\n"
-            "------------\n"
-            "*/start:* `Starts the trader`\n"
-            "*/pause:* `Pause the new entries for trader, but handles open trades gracefully`\n"
-            "*/stop:* `Stops the trader`\n"
-            "*/stopentry:* `Stops entering, but handles open trades gracefully` \n"
-            "*/forceexit <trade_id>|all:* `Instantly exits the given trade or all trades, "
-            "regardless of profit`\n"
-            "*/fx <trade_id>|all:* `Alias to /forceexit`\n"
+            "🤖 *Bot Control*\n"
+            "• `/start`      — Starts the trader\n"
+            "• `/stop`       — Stops the trader\n"
+            "• `/pause`      — Pause new entries (keeps open trades)\n"
+            "• `/forceexit <id>|all` — Instantly exits trade(s)\n"
             f"{force_enter_text if self._config.get('force_entry_enable', False) else ''}"
-            "*/delete <trade_id>:* `Instantly delete the given trade in the database`\n"
-            "*/reload_trade <trade_id>:* `Reload trade from exchange Orders`\n"
-            "*/cancel_open_order <trade_id>:* `Cancels open orders for trade. "
-            "Only valid when the trade has open orders.`\n"
-            "*/coo <trade_id>|all:* `Alias to /cancel_open_order`\n"
-            "*/whitelist [sorted] [baseonly]:* `Show current whitelist. Optionally in "
-            "order and/or only displaying the base currency of each pairing.`\n"
-            "*/blacklist [pair]:* `Show current blacklist, or adds one or more pairs "
-            "to the blacklist.` \n"
-            "*/blacklist_delete [pairs]| /bl_delete [pairs]:* "
-            "`Delete pair / pattern from blacklist. Will reset on reload_conf.` \n"
-            "*/reload_config:* `Reload configuration file` \n"
-            "*/unlock <pair|id>:* `Unlock this Pair (or this lock id if it's numeric)`\n"
-            "_Current state_\n"
-            "------------\n"
-            "*/show_config:* `Show running configuration` \n"
-            "*/locks:* `Show currently locked pairs`\n"
-            "*/balance:* `Show bot managed balance per currency`\n"
-            "*/balance full:* `Show account balance per currency`\n"
-            "*/logs [limit]:* `Show latest logs - defaults to 10` \n"
-            "*/count:* `Show number of active trades compared to allowed number of trades`\n"
-            "*/health* `Show latest process timestamp - defaults to 1970-01-01 00:00:00` \n"
-            "*/marketdir [long | short | even | none]:* `Updates the user managed variable "
-            "that represents the current market direction. If no direction is provided `"
-            "`the currently set market direction will be output.` \n"
-            "*/list_custom_data <trade_id> <key>:* `List custom_data for Trade ID & Key combo.`\n"
-            "`If no Key is supplied it will list all key-value pairs found for that Trade ID.`\n"
-            "_Statistics_\n"
-            "------------\n"
-            "*/status <trade_id>|[table]:* `Lists all open trades`\n"
-            "         *<trade_id> :* `Lists one or more specific trades.`\n"
-            "                        `Separate multiple <trade_id> with a blank space.`\n"
-            "         *table :* `will display trades in a table`\n"
-            "                `pending buy orders are marked with an asterisk (*)`\n"
-            "                `pending sell orders are marked with a double asterisk (**)`\n"
-            "*/entries <pair|none>:* `Shows the enter_tag performance`\n"
-            "*/exits <pair|none>:* `Shows the exit reason performance`\n"
-            "*/mix_tags <pair|none>:* `Shows combined entry tag + exit reason performance`\n"
-            "*/trades [limit]:* `Lists last closed trades (limited to 10 by default)`\n"
-            "*/profit [<n>]:* `Lists cumulative profit from all finished trades, "
-            "over the last n days`\n"
-            "*/profit_long [<n>]:* `Lists cumulative profit from all finished long trades, "
-            "over the last n days`\n"
-            "*/profit_short [<n>]:* `Lists cumulative profit from all finished short trades, "
-            "over the last n days`\n"
-            "*/performance:* `Show performance of each finished trade grouped by pair`\n"
-            "*/daily <n>:* `Shows profit or loss per day, over the last n days`\n"
-            "*/weekly <n>:* `Shows statistics per week, over the last n weeks`\n"
-            "*/monthly <n>:* `Shows statistics per month, over the last n months`\n"
-            "*/stats:* `Shows Wins / losses by Sell reason as well as "
-            "Avg. holding durations for buys and sells.`\n"
-            "*/help:* `This help message`\n"
-            "*/version:* `Show version`\n"
+            "• `/delete <id>` — Delete trade from DB (no exchange action)\n"
+            "• `/reload_trade <id>` — Reload trade from exchange\n"
+            "• `/cancel_open_order <id>` — Cancel open orders\n"
+            "\n"
+            "📊 *Statistics*\n"
+            "• `/status <id>|[table]` — List open trades\n"
+            "• `/profit [<n>]` — Cumulative profit (last n days)\n"
+            "• `/daily <n>`    — Daily profit\n"
+            "• `/weekly <n>`   — Weekly profit\n"
+            "• `/monthly <n>`  — Monthly profit\n"
+            "• `/trades [limit]` — Recent closed trades\n"
+            "• `/performance`  — Performance by pair\n"
+            "• `/stats`        — Win/Loss stats and durations\n"
+            "• `/count`        — Active trade count\n"
+            "\n"
+            "⚙️ *Configuration*\n"
+            "• `/show_config`  — Show running config\n"
+            "• `/reload_config` — Reload config file\n"
+            "• `/whitelist`    — Show whitelist\n"
+            "• `/blacklist`    — Show blacklist\n"
+            "• `/marketdir`    — Set market direction\n"
+            "\n"
+            "ℹ️ *Info*\n"  # noqa: RUF001
+            "• `/balance`      — Show balances\n"
+            "• `/locks`        — Show active locks\n"
+            "• `/logs [limit]` — Show recent logs\n"
+            "• `/health`       — Health check\n"
+            "• `/version`      — Show version\n"
+            "• `/help`         — Show this help\n"
         )
 
         await self._send_msg(message, parse_mode=ParseMode.MARKDOWN)
@@ -2047,9 +2001,10 @@ class Telegram(RPCHandler):
         Shows the last process timestamp
         """
         health = self._rpc.health()
-        message = f"Last process: `{health['last_process_loc']}`\n"
-        message += f"Initial bot start: `{health['bot_start_loc']}`\n"
-        message += f"Last bot restart: `{health['bot_startup_loc']}`"
+        message = "💓 *System Health*\n"
+        message += f"⏱️ *Last process:* `{health['last_process_loc']}`\n"
+        message += f"🚀 *Bot start:* `{health['bot_start_loc']}`\n"
+        message += f"🔄 *Last restart:* `{health['bot_startup_loc']}`"
         await self._send_msg(message)
 
     @authorized_only
@@ -2100,7 +2055,7 @@ class Telegram(RPCHandler):
 
         await self._send_msg(
             f"*Mode:* `{'Dry-run' if val['dry_run'] else 'Live'}`\n"
-            f"*Exchange:* `{val['exchange']}{' (Demo)' if val['demo_trading'] else ''}`\n"
+            f"*Exchange:* `{val['exchange']}`\n"
             f"*Market: * `{val['trading_mode']}`\n"
             f"*Stake per trade:* `{val['stake_amount']} {val['stake_currency']}`\n"
             f"*Max open Trades:* `{val['max_open_trades']}`\n"
@@ -2176,7 +2131,7 @@ class Telegram(RPCHandler):
             )
         else:
             reply_markup = InlineKeyboardMarkup([[]])
-        msg += f"\nUpdated: {dt_now().ctime()}"
+        msg += f"\nUpdated: {datetime.now().ctime()}"
         if not query.message:
             return
 
@@ -2294,7 +2249,7 @@ class Telegram(RPCHandler):
         else:
             raise RPCException(
                 "Invalid usage of command /marketdir. \n"
-                "Usage: */marketdir [short | long | even | none]*"
+                "Usage: */marketdir [short |  long | even | none]*"
             )
 
     async def _tg_info(self, update: Update, context: CallbackContext) -> None:
@@ -2314,7 +2269,7 @@ class Telegram(RPCHandler):
             update.effective_user.id if topic_id is not None and update.effective_user else None
         )
 
-        msg = f"""Freqtrade Bot Info:
+        msg = f"""Freqtrade - Crypto P Edition Bot Info:
         ```json
             {{
                 "enabled": true,

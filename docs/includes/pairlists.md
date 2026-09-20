@@ -2,11 +2,11 @@
 
 Pairlist Handlers define the list of pairs (pairlist) that the bot should trade. They are configured in the `pairlists` section of the configuration settings.
 
-In your configuration, you can use Static Pairlist (defined by the [`StaticPairList`](#static-pair-list) Pairlist Handler) and Dynamic Pairlist (defined by the [`VolumePairList`](#volume-pair-list), [`CrossMarketPairList`](#crossmarketpairlist), [`MarketCapPairlist`](#marketcappairlist) and [`PercentChangePairList`](#percent-change-pair-list) Pairlist Handlers).
+In your configuration, you can use Static Pairlist (defined by the [`StaticPairList`](#static-pair-list) Pairlist Handler) and Dynamic Pairlist (defined by the [`VolumePairList`](#volume-pair-list) and [`PercentChangePairList`](#percent-change-pair-list) Pairlist Handlers).
 
 Additionally, [`AgeFilter`](#agefilter), [`DelistFilter`](#delistfilter), [`PrecisionFilter`](#precisionfilter), [`PriceFilter`](#pricefilter), [`ShuffleFilter`](#shufflefilter), [`SpreadFilter`](#spreadfilter) and [`VolatilityFilter`](#volatilityfilter) act as Pairlist Filters, removing certain pairs and/or moving their positions in the pairlist.
 
-If multiple Pairlist Handlers are used, they are chained and a combination of all Pairlist Handlers forms the resulting pairlist the bot uses for trading and backtesting. Pairlist Handlers are executed in the sequence they are configured. You can define either `StaticPairList`, `VolumePairList`, `ProducerPairList`, `RemotePairList`, `MarketCapPairList`, `PercentChangePairList` or `CrossMarketPairList` as the starting Pairlist Handler.
+If multiple Pairlist Handlers are used, they are chained and a combination of all Pairlist Handlers forms the resulting pairlist the bot uses for trading and backtesting. Pairlist Handlers are executed in the sequence they are configured. You can define either `StaticPairList`, `VolumePairList`, `ProducerPairList`, `RemotePairList`, `MarketCapPairList` or `PercentChangePairList` as the starting Pairlist Handler.
 
 Inactive markets are always removed from the resulting pairlist. Explicitly blacklisted pairs (those in the `pair_blacklist` configuration setting) are also always removed from the resulting pairlist.
 
@@ -26,12 +26,10 @@ You may also use something like `.*DOWN/BTC` or `.*UP/BTC` to exclude leveraged 
 * [`ProducerPairList`](#producerpairlist)
 * [`RemotePairList`](#remotepairlist)
 * [`MarketCapPairList`](#marketcappairlist)
-* [`CrossMarketPairList`](#crossmarketpairlist)
 * [`AgeFilter`](#agefilter)
 * [`DelistFilter`](#delistfilter)
 * [`FullTradesFilter`](#fulltradesfilter)
 * [`OffsetFilter`](#offsetfilter)
-* [`PairInformationFilter`](#pairinformationfilter)
 * [`PerformanceFilter`](#performancefilter)
 * [`PrecisionFilter`](#precisionfilter)
 * [`PriceFilter`](#pricefilter)
@@ -181,7 +179,7 @@ More sophisticated approach can be used, by using `lookback_timeframe` for candl
 * `max_value`: Sets a maximum percentage change threshold. Pairs with a percentage change above this value will be filtered out.
 * `sort_direction`: Specifies the order in which pairs are sorted based on their percentage change. Accepts two values: `asc` for ascending order and `desc` for descending order.
 * `refresh_period`: Defines the interval (in seconds) at which the pairlist will be refreshed. The default is 1800 seconds (30 minutes).
-* `lookback_days`: Number of days to look back. `lookback_days` implies a `lookback_timeframe` of 1 day - combining it with a different `lookback_timeframe` will result in an error.
+* `lookback_days`: Number of days to look back. When `lookback_days` is selected, the `lookback_timeframe` is defaulted to 1 day.
 * `lookback_timeframe`: Timeframe to use for the lookback period.
 * `lookback_period`: Number of periods to look back at.
 
@@ -305,8 +303,6 @@ The optional `mode` option specifies if the pairlist should be used as a `blackl
 
 The optional `processing_mode` option in the RemotePairList configuration determines how the retrieved pairlist is processed. It can have two values: "filter" or "append". The default value is "filter".
 
-The optional `number_assets` option in the RemotePairList configuration determines how many pairs will be returned if used in whitelist `mode`. By default, all pairs will be returned. In blacklist `mode`, this option will be ignored.
-
 In "filter" mode, the retrieved pairlist is used as a filter. Only the pairs present in both the original pairlist and the retrieved pairlist are included in the final pairlist. Other pairs are filtered out.
 
 In "append" mode, the retrieved pairlist is added to the original pairlist. All pairs from both lists are included in the final pairlist without any filtering.
@@ -406,12 +402,6 @@ Coins like 1000PEPE/USDT or KPEPE/USDT:USDT are detected on a best effort basis,
 !!! Danger "Duplicate symbols in coingecko"
     Coingecko often has duplicate symbols, where the same symbol is used for different coins. Freqtrade will use the symbol as is and try to search for it on the exchange. If the symbol exists - it will be used. Freqtrade will however not check if the _intended_ symbol is the one coingecko meant. This can sometimes lead to unexpected results, especially on low volume coins or with meme coin categories.
 
-#### CrossMarketPairList
-
-Generate or filter pairs based of their availability on the opposite market.
-
-The `pairs_exist_on` setting defines whether the pairs should exists on both spot and futures market (`both_markets`) or only exist on the specified trading mode (`current_market_only`). By default, the plugin will be in `both_markets` setting, which means whitelisted pairs have to exists on both spot and futures markets.
-
 #### AgeFilter
 
 Removes pairs that have been listed on the exchange for less than `min_days_listed` days (defaults to `10`) or more than `max_days_listed` days (defaults `None` mean infinity).
@@ -469,65 +459,6 @@ Example to remove the first 10 pairs from the pairlist, and takes the next 20 (t
 
 !!! Note
     An offset larger than the total length of the incoming pairlist will result in an empty pairlist.
-
-#### PairInformationFilter
-
-Filters pairs based on the presence of certain information in the ccxt markets argument.
-
-To get the correct field - you can use the following code snippet to print the market information for a given pair, and find the correct field and value to filter for:
-
-``` python
-import ccxt
-from pprint import pprint
-exchange = ccxt.binance({
-    'options': {'defaultType': 'swap'} 
-    })
-lm = exchange.load_markets()
-pprint(lm['XAU/USDT:USDT'])
-```
-
-``` json hl_lines="13 16"
-{
-    "id": "XAUUSDT",
-    "lowercaseId": "xauusdt",
-    "symbol": "XAU/USDT:USDT",
-    "base": "XAU",
-    "quote": "USDT",
-    "settle": "USDT",
-    "baseId": "XAU",
-    "quoteId": "USDT",
-    "settleId": "USDT",
-    "type": "swap",
-    // ...
-    "info": {
-        "symbol": "XAUUSDT",
-        "pair": "XAUUSDT",
-        "contractType": "TRADIFI_PERPETUAL",
-        "deliveryDate": 4133404800000,
-        "onboardDate": 1765440300000,
-        "status": "TRADING",
-        // ...
-    }
-}
-
-```
-
-As the highlighted lines show, the `contractType` field in the `info` section of the market data contains the value `TRADIFI_PERPETUAL`, which can be used to filter for TradeFi perpetual contracts.
-Nested dictionaries can be accessed by using dot notation in the `info_key` - so the `contractType` field can be accessed with `info.contractType`.
-
-In this example, the resulting `PairInformationFilter` configuration will include pairs that have `TRADIFI_PERPETUAL` as their `contractType` in the `info` section of the market data.
-
-``` json
-[
-    // ...
-    {
-        "method": "PairInformationFilter",
-        "selection_mode": "whitelist",  // can be whitelist or blacklist
-        "info_key" : "info.contractType", // can be any key in market data
-        "info_compare_value": "TRADIFI_PERPETUAL", // can be any matching value
-    }
-]
-```
 
 #### PerformanceFilter
 
@@ -625,6 +556,25 @@ To shuffle on every iteration, set `"shuffle_frequency"` to `"iteration"` instea
 !!! Tip
     You may set the `seed` value for this Pairlist to obtain reproducible results, which can be useful for repeated backtesting sessions. If `seed` is not set, the pairs are shuffled in the non-repeatable random order. ShuffleFilter will automatically detect runmodes and apply the `seed` only for backtesting modes - if a `seed` value is set.
 
+#### SpikeFilter
+
+Filters pairs that had an abnormal price spike (pump or dump) recently.
+
+This filter helps in avoiding pairs that recently pumped or dumped aggressively and might be subject to correction, which is typical behavior after a sudden huge change in price.
+
+The `lookback_days` setting determines how many days to check for spikes, and `max_spike_percentage` defines the maximum allowed price change (calculated as high vs low in a single day) as a percentage.
+
+```json
+"pairlists": [
+    {
+        "method": "SpikeFilter",
+        "lookback_days": 3,
+        "max_spike_percentage": 20.0,
+        "refresh_period": 86400
+    }
+]
+```
+
 #### SpreadFilter
 
 Removes pairs that have a difference between asks and bids above the specified ratio, `max_spread_ratio` (defaults to `0.005`).
@@ -635,9 +585,7 @@ If `DOGE/BTC` maximum bid is 0.00000026 and minimum ask is 0.00000027, the ratio
 
 #### RangeStabilityFilter
 
-Removes pairs where the difference between lowest low and highest high over `lookback_period` candles of `lookback_timeframe` (defaults to `1d`) is below `min_rate_of_change` or above `max_rate_of_change`. Since this is a filter that requires additional data, the results are cached for `refresh_period`.
-
-For convenience, `lookback_days` can be used instead, which implies daily candles (equivalent to setting `lookback_period` with a `lookback_timeframe` of `1d`). One of `lookback_days` or `lookback_period` must be set - setting both is ambiguous and will result in an error, as does combining `lookback_days` with a `lookback_timeframe` other than `1d`. Setting neither is deprecated and currently falls back to a lookback of 10 days - this fallback will be removed in a future version.
+Removes pairs where the difference between lowest low and highest high over `lookback_days` days is below `min_rate_of_change` or above `max_rate_of_change`. Since this is a filter that requires additional data, the results are cached for `refresh_period`.
 
 In the below example:
 If the trading range over the last 10 days is <1% or >99%, remove the pair from the whitelist.
@@ -646,26 +594,10 @@ If the trading range over the last 10 days is <1% or >99%, remove the pair from 
 "pairlists": [
     {
         "method": "RangeStabilityFilter",
-        "lookback_timeframe": "1d",
-        "lookback_period": 10,
+        "lookback_days": 10,
         "min_rate_of_change": 0.01,
         "max_rate_of_change": 0.99,
         "refresh_period": 86400
-    }
-]
-```
-
-The same filter based on a trading range of 72 1h candles (3 days) would look as follows:
-
-```json
-"pairlists": [
-    {
-        "method": "RangeStabilityFilter",
-        "lookback_timeframe": "1h",
-        "lookback_period": 72,
-        "min_rate_of_change": 0.01,
-        "max_rate_of_change": 0.99,
-        "refresh_period": 3600
     }
 ]
 ```
@@ -676,13 +608,31 @@ Adding `"sort_direction": "asc"` or `"sort_direction": "desc"` enables sorting f
     This Filter can be used to automatically remove stable coin pairs, which have a very low trading range, and are therefore extremely difficult to trade with profit.
     Additionally, it can also be used to automatically remove pairs with extreme high/low variance over a given amount of time.
 
+#### TrendFilter
+
+Filters pairs by their recent trend (using Simple Moving Average or Exponential Moving Average).
+
+This filter removes pairs if their trend strength is below the `minimum_trend_strength` percentage. The trend strength is calculated by comparing the current close price to the moving average (SMA or EMA).
+
+```json
+"pairlists": [
+    {
+        "method": "TrendFilter",
+        "lookback_days": 14,
+        "trend_type": "sma",
+        "minimum_trend_strength": 0.0,
+        "refresh_period": 86400
+    }
+]
+```
+
+Adding `"sort_direction": "asc"` or `"sort_direction": "desc"` enables sorting mode for this pairlist.
+
 #### VolatilityFilter
 
-Volatility is the degree of historical variation of a pairs over time, it is measured by the standard deviation of logarithmic candle-to-candle returns. Returns are assumed to be normally distributed, although actual distribution might be different. In a normal distribution, 68% of observations fall within one standard deviation and 95% of observations fall within two standard deviations. Assuming a volatility of 0.05 means that the expected returns for 20 out of 30 days is expected to be less than 5% (one standard deviation). Volatility is a positive ratio of the expected deviation of return and can be greater than 1.00. Please refer to the wikipedia definition of [`volatility`](https://en.wikipedia.org/wiki/Volatility_(finance)).
+Volatility is the degree of historical variation of a pairs over time, it is measured by the standard deviation of logarithmic daily returns. Returns are assumed to be normally distributed, although actual distribution might be different. In a normal distribution, 68% of observations fall within one standard deviation and 95% of observations fall within two standard deviations. Assuming a volatility of 0.05 means that the expected returns for 20 out of 30 days is expected to be less than 5% (one standard deviation). Volatility is a positive ratio of the expected deviation of return and can be greater than 1.00. Please refer to the wikipedia definition of [`volatility`](https://en.wikipedia.org/wiki/Volatility_(finance)).
 
-This filter removes pairs if the average volatility over `lookback_period` candles of `lookback_timeframe` (defaults to `1d`) is below `min_volatility` or above `max_volatility`. Since this is a filter that requires additional data, the results are cached for `refresh_period`.
-
-For convenience, `lookback_days` can be used instead, which implies daily candles (equivalent to setting `lookback_period` with a `lookback_timeframe` of `1d`). One of `lookback_days` or `lookback_period` must be set - setting both is ambiguous and will result in an error, as does combining `lookback_days` with a `lookback_timeframe` other than `1d`. Setting neither is deprecated and currently falls back to a lookback of 10 days - this fallback will be removed in a future version.
+This filter removes pairs if the average volatility over a `lookback_days` days is below `min_volatility` or above `max_volatility`. Since this is a filter that requires additional data, the results are cached for `refresh_period`.
 
 This filter can be used to narrow down your pairs to a certain volatility or avoid very volatile pairs.
 
@@ -693,26 +643,10 @@ If the volatility over the last 10 days is not in the range of 0.05-0.50, remove
 "pairlists": [
     {
         "method": "VolatilityFilter",
-        "lookback_timeframe": "1d",
-        "lookback_period": 10,
+        "lookback_days": 10,
         "min_volatility": 0.05,
         "max_volatility": 0.50,
         "refresh_period": 86400
-    }
-]
-```
-
-The same filter based on the volatility of 72 1h candles (3 days) would look as follows:
-
-```json
-"pairlists": [
-    {
-        "method": "VolatilityFilter",
-        "lookback_timeframe": "1h",
-        "lookback_period": 72,
-        "min_volatility": 0.05,
-        "max_volatility": 0.50,
-        "refresh_period": 3600
     }
 ]
 ```

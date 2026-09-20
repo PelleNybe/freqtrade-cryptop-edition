@@ -56,14 +56,17 @@ def _analyze_candles_and_indicators(
 
                     trades_red.loc[t, "signal_date"] = tmp_inds["date"].values[0]
                     trades_red.loc[t, "enter_reason"] = trades_red.loc[t, "enter_tag"]
-                    tmp_inds.index.rename("signal_date", inplace=True)
+                    tmp_inds.index.names = ["signal_date"]
                     trades_inds = pd.concat([trades_inds, tmp_inds])
 
             if "signal_date" in trades_red:
                 trades_red["signal_date"] = pd.to_datetime(trades_red["signal_date"], utc=True)
-                trades_red.set_index("signal_date", inplace=True)
+                trades_red = trades_red.set_index("signal_date")
 
-                trades_red = pd.merge(trades_red, trades_inds, on="signal_date", how="outer")
+                try:
+                    trades_red = pd.merge(trades_red, trades_inds, on="signal_date", how="outer")
+                except Exception as e:
+                    raise e
         return trades_red
     else:
         return pd.DataFrame()
@@ -208,9 +211,9 @@ def prepare_results(
     analysed_trades, stratname, enter_reason_list, exit_reason_list, timerange=None
 ) -> pd.DataFrame:
     res_df = pd.DataFrame()
-    for trades in analysed_trades[stratname].values():
+    for pair, trades in analysed_trades[stratname].items():
         if trades.shape[0] > 0:
-            trades.dropna(subset=["close_date"], inplace=True)
+            trades = trades.dropna(subset=["close_date"])
             res_df = pd.concat([res_df, trades], ignore_index=True)
 
     res_df = _select_rows_within_dates(res_df, timerange)
@@ -347,7 +350,7 @@ def process_entry_exit_reasons(config: Config):
         except ValueError as e:
             raise ConfigurationError(e) from e
 
-        for strategy_name in backtest_stats["strategy"]:
+        for strategy_name, results in backtest_stats["strategy"].items():
             trades = load_backtest_data(
                 config["exportdirectory"], strategy_name, config["exportfilename"]
             )

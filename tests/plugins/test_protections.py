@@ -1,6 +1,5 @@
 import random
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 
 import pytest
 
@@ -100,9 +99,9 @@ def test_protectionmanager(mocker, default_conf):
     for handler in freqtrade.protections._protection_handlers:
         assert handler.name in AVAILABLE_PROTECTIONS
         if not handler.has_global_stop:
-            assert handler.global_stop(datetime.now(UTC), "*", 1000.0) is None
+            assert handler.global_stop(datetime.now(UTC), "*") is None
         if not handler.has_local_stop:
-            assert handler.stop_per_pair("XRP/BTC", datetime.now(UTC), "*", 1000.0) is None
+            assert handler.stop_per_pair("XRP/BTC", datetime.now(UTC), "*") is None
 
 
 @pytest.mark.parametrize(
@@ -659,7 +658,7 @@ def test_LowProfitPairs(mocker, default_conf, fee, caplog, only_per_side):
 
 
 @pytest.mark.usefixtures("init_persistence")
-def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
+def test_MaxDrawdown(mocker, default_conf, fee, caplog):
     default_conf["_strategy_protections"] = [
         {
             "method": "MaxDrawdown",
@@ -669,12 +668,13 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
             "max_allowed_drawdown": 0.15,
         }
     ]
+    # Set a small wallet size so that losses are significant relative to account balance
+    default_conf["dry_run_wallet"] = 0.01
     freqtrade = get_patched_freqtradebot(mocker, default_conf)
     message = r"Trading stopped due to Max.*"
-    starting_balance = 0.05
 
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert not freqtrade.protections.stop_per_pair("XRP/BTC", starting_balance=starting_balance)
+    assert not freqtrade.protections.global_stop()
+    assert not freqtrade.protections.stop_per_pair("XRP/BTC")
     caplog.clear()
 
     generate_mock_trade(
@@ -706,8 +706,8 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
     )
     Trade.commit()
     # No losing trade yet ... so max_drawdown will raise exception
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert not freqtrade.protections.stop_per_pair("XRP/BTC", starting_balance=starting_balance)
+    assert not freqtrade.protections.global_stop()
+    assert not freqtrade.protections.stop_per_pair("XRP/BTC")
 
     generate_mock_trade(
         "XRP/BTC",
@@ -719,8 +719,8 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
         profit_rate=0.9,
     )
     # Not locked with one trade
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert not freqtrade.protections.stop_per_pair("XRP/BTC", starting_balance=starting_balance)
+    assert not freqtrade.protections.global_stop()
+    assert not freqtrade.protections.stop_per_pair("XRP/BTC")
     assert not PairLocks.is_pair_locked("XRP/BTC")
     assert not PairLocks.is_global_lock()
 
@@ -736,8 +736,8 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
     Trade.commit()
 
     # Not locked with 1 trade (2nd trade is outside of lookback_period)
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert not freqtrade.protections.stop_per_pair("XRP/BTC", starting_balance=starting_balance)
+    assert not freqtrade.protections.global_stop()
+    assert not freqtrade.protections.stop_per_pair("XRP/BTC")
     assert not PairLocks.is_pair_locked("XRP/BTC")
     assert not PairLocks.is_global_lock()
     assert not log_has_re(message, caplog)
@@ -753,7 +753,7 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
         profit_rate=1.5,
     )
     Trade.commit()
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
+    assert not freqtrade.protections.global_stop()
     assert not PairLocks.is_global_lock()
 
     caplog.clear()
@@ -766,213 +766,15 @@ def test_MaxDrawdown_ratio_mode(mocker, default_conf, fee, caplog):
         exit_reason=ExitType.ROI.value,
         min_ago_open=20,
         min_ago_close=10,
-        profit_rate=0.2,
-    )
-    Trade.commit()
-    assert not freqtrade.protections.stop_per_pair("XRP/BTC", starting_balance=starting_balance)
-    # local lock not supported
-    assert not PairLocks.is_pair_locked("XRP/BTC")
-    assert freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert PairLocks.is_global_lock()
-    assert log_has_re(message, caplog)
-
-
-@pytest.mark.usefixtures("init_persistence")
-def test_MaxDrawdown_equity_mode(mocker, default_conf, fee):
-    default_conf["_strategy_protections"] = [
-        {
-            "method": "MaxDrawdown",
-            "lookback_period": 1000,
-            "stop_duration": 60,
-            "trade_limit": 1,
-            "max_allowed_drawdown": 0.01,
-            "calculation_mode": "equity",
-        }
-    ]
-    freqtrade = get_patched_freqtradebot(mocker, default_conf)
-    starting_balance = 0.01
-
-    assert not freqtrade.protections.global_stop(starting_balance=starting_balance)
-
-    generate_mock_trade(
-        "XRP/BTC",
-        fee.return_value,
-        False,
-        exit_reason=ExitType.STOP_LOSS.value,
-        min_ago_open=30,
-        min_ago_close=10,
         profit_rate=0.5,
     )
     Trade.commit()
-
-    assert freqtrade.protections.global_stop(starting_balance=starting_balance)
+    assert not freqtrade.protections.stop_per_pair("XRP/BTC")
+    # local lock not supported
+    assert not PairLocks.is_pair_locked("XRP/BTC")
+    assert freqtrade.protections.global_stop()
     assert PairLocks.is_global_lock()
-
-
-@pytest.mark.parametrize(
-    "calculation_mode,expected_locked",
-    [("ratios", True), ("equity", False)],
-)
-@pytest.mark.usefixtures("init_persistence")
-def test_MaxDrawdown_mode_comparison(mocker, default_conf, fee, calculation_mode, expected_locked):
-    default_conf["_strategy_protections"] = [
-        {
-            "method": "MaxDrawdown",
-            "lookback_period": 1000,
-            "stop_duration": 60,
-            "trade_limit": 3,
-            "max_allowed_drawdown": 0.15,
-            "calculation_mode": calculation_mode,
-        }
-    ]
-    freqtrade = get_patched_freqtradebot(mocker, default_conf)
-    starting_balance = 1000.0
-
-    # Same trade sequence for both modes: ratios mode lock expected,equity mode no lock expected.
-    generate_mock_trade(
-        "XRP/BTC",
-        fee.return_value,
-        False,
-        exit_reason=ExitType.ROI.value,
-        min_ago_open=120,
-        min_ago_close=50,
-        profit_rate=1.2,
-    )
-    generate_mock_trade(
-        "ETH/BTC",
-        fee.return_value,
-        False,
-        exit_reason=ExitType.STOP_LOSS.value,
-        min_ago_open=80,
-        min_ago_close=20,
-        profit_rate=0.9,
-    )
-    generate_mock_trade(
-        "NEO/BTC",
-        fee.return_value,
-        False,
-        exit_reason=ExitType.STOP_LOSS.value,
-        min_ago_open=40,
-        min_ago_close=10,
-        profit_rate=0.9,
-    )
-    Trade.commit()
-
-    lock = freqtrade.protections.global_stop(starting_balance=starting_balance)
-    assert bool(lock) is expected_locked
-    assert PairLocks.is_global_lock(side="long") is expected_locked
-
-
-@pytest.mark.parametrize("calculation_mode", ["ratios", "equity"])
-@pytest.mark.usefixtures("init_persistence")
-def test_MaxDrawdown_threshold_boundary(mocker, default_conf, calculation_mode):
-    threshold = 0.15
-    default_conf["_strategy_protections"] = [
-        {
-            "method": "MaxDrawdown",
-            "lookback_period": 1000,
-            "stop_duration": 60,
-            "trade_limit": 1,
-            "max_allowed_drawdown": threshold,
-            "calculation_mode": calculation_mode,
-        }
-    ]
-    freqtrade = get_patched_freqtradebot(mocker, default_conf)
-    handler = next(p for p in freqtrade.protections._protection_handlers if p.name == "MaxDrawdown")
-    md_globals = handler._max_drawdown.__globals__
-
-    now = datetime.now(UTC)
-    trades_in_window = [
-        SimpleNamespace(
-            close_date_utc=now - timedelta(minutes=10), close_profit_abs=-1.0, close_profit=-0.1
-        )
-    ]
-    all_closed_trades = [
-        SimpleNamespace(
-            close_date_utc=now - timedelta(minutes=1500), close_profit_abs=5.0, close_profit=0.2
-        ),
-        trades_in_window[0],
-    ]
-
-    proxy_side_effect = [trades_in_window]
-    if calculation_mode == "equity":
-        proxy_side_effect.append(all_closed_trades)
-
-    mocker.patch.object(
-        md_globals["Trade"],
-        "get_trades_proxy",
-        side_effect=proxy_side_effect,
-    )
-    calc_mock = mocker.Mock(
-        return_value=SimpleNamespace(relative_account_drawdown=threshold, drawdown_abs=threshold)
-    )
-    mocker.patch.dict(md_globals, {"calculate_max_drawdown": calc_mock})
-
-    assert not handler.global_stop(datetime.now(UTC), "long", starting_balance=1000.0)
-    assert not PairLocks.is_global_lock()
-
-
-@pytest.mark.parametrize(
-    "calculation_mode,expected_value_col,expected_proxy_calls",
-    [("ratios", "close_profit", 1), ("equity", "profit_abs", 2)],
-)
-@pytest.mark.usefixtures("init_persistence")
-def test_MaxDrawdown_calculation_mode_dispatch(
-    mocker, default_conf, calculation_mode, expected_value_col, expected_proxy_calls
-):
-    default_conf["_strategy_protections"] = [
-        {
-            "method": "MaxDrawdown",
-            "lookback_period": 1000,
-            "stop_duration": 60,
-            "trade_limit": 1,
-            "max_allowed_drawdown": 0.15,
-            "calculation_mode": calculation_mode,
-        }
-    ]
-    freqtrade = get_patched_freqtradebot(mocker, default_conf)
-    handler = next(p for p in freqtrade.protections._protection_handlers if p.name == "MaxDrawdown")
-    md_globals = handler._max_drawdown.__globals__
-
-    now = datetime.now(UTC)
-    trades_in_window = [
-        SimpleNamespace(
-            close_date_utc=now - timedelta(minutes=10), close_profit_abs=-1.0, close_profit=-0.1
-        )
-    ]
-    all_closed_trades = [
-        SimpleNamespace(
-            close_date_utc=now - timedelta(minutes=1500), close_profit_abs=5.0, close_profit=0.2
-        ),
-        trades_in_window[0],
-    ]
-
-    proxy_side_effect = [trades_in_window]
-    if calculation_mode == "equity":
-        proxy_side_effect.append(all_closed_trades)
-
-    proxy_mock = mocker.patch.object(
-        md_globals["Trade"],
-        "get_trades_proxy",
-        side_effect=proxy_side_effect,
-    )
-    calc_mock = mocker.Mock(
-        return_value=SimpleNamespace(relative_account_drawdown=0.0, drawdown_abs=0.0)
-    )
-    mocker.patch.dict(md_globals, {"calculate_max_drawdown": calc_mock})
-
-    assert not handler.global_stop(datetime.now(UTC), "long", starting_balance=1000.0)
-
-    assert proxy_mock.call_count == expected_proxy_calls
-    kwargs = calc_mock.call_args.kwargs
-    assert kwargs["value_col"] == expected_value_col
-
-    if calculation_mode == "equity":
-        assert kwargs["starting_balance"] == 1005.0
-        assert kwargs["relative"] is True
-    else:
-        assert "starting_balance" not in kwargs
-        assert "relative" not in kwargs
+    assert log_has_re(message, caplog)
 
 
 @pytest.mark.parametrize(
@@ -985,10 +787,8 @@ def test_MaxDrawdown_calculation_mode_dispatch(
                 "trade_limit": 2,
                 "stop_duration": 60,
             },
-            (
-                "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
-                "2 stoplosses with profit < 0.00% within 60 minutes.'}]"
-            ),
+            "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
+            "2 stoplosses with profit < 0.00% within 60 minutes.'}]",
             None,
         ),
         (
@@ -998,18 +798,14 @@ def test_MaxDrawdown_calculation_mode_dispatch(
         ),
         (
             {"method": "LowProfitPairs", "lookback_period": 60, "stop_duration": 60},
-            (
-                "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
-                "profit < 0.0 within 60 minutes.'}]"
-            ),
+            "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
+            "profit < 0.0 within 60 minutes.'}]",
             None,
         ),
         (
             {"method": "MaxDrawdown", "lookback_period": 60, "stop_duration": 60},
-            (
-                "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-                "if drawdown is > 0.0 within 60 minutes.'}]"
-            ),
+            "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
+            "if drawdown is > 0.0 within 60 minutes.'}]",
             None,
         ),
         (
@@ -1020,10 +816,8 @@ def test_MaxDrawdown_calculation_mode_dispatch(
                 "required_profit": -0.05,
                 "stop_duration": 60,
             },
-            (
-                "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
-                "2 stoplosses with profit < -5.00% within 12 candles.'}]"
-            ),
+            "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
+            "2 stoplosses with profit < -5.00% within 12 candles.'}]",
             None,
         ),
         (
@@ -1033,18 +827,14 @@ def test_MaxDrawdown_calculation_mode_dispatch(
         ),
         (
             {"method": "LowProfitPairs", "lookback_period_candles": 11, "stop_duration": 60},
-            (
-                "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
-                "profit < 0.0 within 11 candles.'}]"
-            ),
+            "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
+            "profit < 0.0 within 11 candles.'}]",
             None,
         ),
         (
             {"method": "MaxDrawdown", "lookback_period_candles": 20, "stop_duration": 60},
-            (
-                "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-                "if drawdown is > 0.0 within 20 candles.'}]"
-            ),
+            "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
+            "if drawdown is > 0.0 within 20 candles.'}]",
             None,
         ),
         (
@@ -1063,26 +853,20 @@ def test_MaxDrawdown_calculation_mode_dispatch(
                 "required_profit": -0.05,
                 "unlock_at": "01:00",
             },
-            (
-                "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
-                "2 stoplosses with profit < -5.00% within 12 candles.'}]"
-            ),
+            "[{'StoplossGuard': 'StoplossGuard - Frequent Stoploss Guard, "
+            "2 stoplosses with profit < -5.00% within 12 candles.'}]",
             None,
         ),
         (
             {"method": "LowProfitPairs", "lookback_period_candles": 11, "unlock_at": "03:00"},
-            (
-                "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
-                "profit < 0.0 within 11 candles.'}]"
-            ),
+            "[{'LowProfitPairs': 'LowProfitPairs - Low Profit Protection, locks pairs with "
+            "profit < 0.0 within 11 candles.'}]",
             None,
         ),
         (
             {"method": "MaxDrawdown", "lookback_period_candles": 20, "unlock_at": "04:00"},
-            (
-                "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-                "if drawdown is > 0.0 within 20 candles.'}]"
-            ),
+            "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
+            "if drawdown is > 0.0 within 20 candles.'}]",
             None,
         ),
     ],

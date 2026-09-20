@@ -1,9 +1,7 @@
 from typing import Any
 
 from fastapi import WebSocket as FastAPIWebSocket
-from fastapi import WebSocketDisconnect
 from websockets.asyncio.client import ClientConnection as WebSocket
-from websockets.exceptions import ConnectionClosed
 
 from freqtrade.rpc.api_server.ws.ws_types import WebSocketType
 
@@ -25,9 +23,10 @@ class WebSocketProxy:
     def remote_addr(self) -> tuple[Any, ...]:
         if isinstance(self._websocket, WebSocket):
             return self._websocket.remote_address
-        elif isinstance(self._websocket, FastAPIWebSocket) and self._websocket.client:
-            client, port = self._websocket.client.host, self._websocket.client.port
-            return (client, port)
+        elif isinstance(self._websocket, FastAPIWebSocket):
+            if self._websocket.client:
+                client, port = self._websocket.client.host, self._websocket.client.port
+                return (client, port)
         return ("unknown", 0)
 
     async def send(self, data):
@@ -63,7 +62,7 @@ class WebSocketProxy:
         if hasattr(self._websocket, "close"):
             try:
                 return await self._websocket.close(code)
-            except (RuntimeError, WebSocketDisconnect, ConnectionClosed):
+            except RuntimeError:
                 pass
 
     async def accept(self):

@@ -3,8 +3,6 @@ from pathlib import Path
 
 import requests
 
-from freqtrade.exceptions import OperationalException
-
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +12,10 @@ req_timeout = 30
 
 def clean_ui_subdir(directory: Path):
     if directory.is_dir():
-        logger.info("Removing UI directory content.")
+        logger.info("Removing Freqtrade - Crypto P Edition UI directory content.")
 
         for p in reversed(list(directory.glob("**/*"))):  # iterate contents from leaves to root
-            if p.name in (".gitkeep", "fallback_file.html"):
+            if p.name in (".gitkeep", "fallback_file.html", "logo.png"):
                 continue
             if p.is_file():
                 p.unlink()
@@ -38,22 +36,64 @@ def download_and_install_ui(dest_folder: Path, dl_url: str, version: str):
     from io import BytesIO
     from zipfile import ZipFile
 
+    from rich.progress import (
+        BarColumn,
+        DownloadColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeRemainingColumn,
+    )
+
     logger.info(f"Downloading {dl_url}")
-    resp = requests.get(dl_url, timeout=req_timeout).content
-    dest_folder = dest_folder.resolve()
+
+    content = BytesIO()
+    with requests.get(dl_url, stream=True, timeout=req_timeout) as resp:
+        resp.raise_for_status()
+        total_length = int(resp.headers.get("content-length", 0))
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TimeRemainingColumn(),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "Downloading Freqtrade - Crypto P Edition UI...", total=total_length
+            )
+
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    content.write(chunk)
+                    progress.update(task, advance=len(chunk))
+
     dest_folder.mkdir(parents=True, exist_ok=True)
-    with ZipFile(BytesIO(resp)) as zf:
+    content.seek(0)
+    with ZipFile(content) as zf:
         for fn in zf.filelist:
-            destfile = (dest_folder / fn.filename).resolve()
-            if not destfile.is_relative_to(dest_folder):
-                raise OperationalException(f"Dangerous path in zipfile: {fn.filename}")
             with zf.open(fn) as x:
+                destfile = dest_folder / fn.filename
                 if fn.is_dir():
                     destfile.mkdir(exist_ok=True)
                 else:
                     destfile.write_bytes(x.read())
     with (dest_folder / ".uiversion").open("w") as f:
         f.write(version)
+
+    from freqtrade.loggers.rich_console import get_rich_console
+
+    console = get_rich_console()
+    console.print()
+    console.print(
+        f"[bold green]✅ Freqtrade - Crypto P Edition UI {version} "
+        "installed successfully![/bold green]"
+    )
+    console.print(f"Installed to: [bold]{dest_folder}[/bold]")
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print("1. Restart your bot to load the new UI.")
+    console.print("2. Access the dashboard in your browser.")
 
 
 def get_ui_download_url(version: str | None, prerelease: bool) -> tuple[str, str]:
@@ -76,7 +116,7 @@ def get_ui_download_url(version: str | None, prerelease: bool) -> tuple[str, str
         latest_version = tmp[0]["name"]
         assets = tmp[0].get("assets", [])
     else:
-        raise OperationalException("UI-Version not found.")
+        raise ValueError("UI-Version not found.")
 
     dl_url = ""
     if assets and len(assets) > 0:

@@ -4,6 +4,9 @@ Exchange support utils
 
 import inspect
 from datetime import UTC, datetime, timedelta
+from decimal import ROUND_DOWN as dec_ROUND_DOWN
+from decimal import ROUND_UP as dec_ROUND_UP
+from decimal import Decimal
 from math import ceil, floor, isnan
 from typing import Any
 
@@ -193,6 +196,8 @@ def amount_to_contracts(amount: float, contract_size: float | None) -> float:
     :return: num-contracts
     """
     if contract_size and contract_size != 1:
+        if amount == 0:
+            return 0.0
         return float(FtPrecise(amount) / FtPrecise(contract_size))
     else:
         return amount
@@ -207,6 +212,8 @@ def contracts_to_amount(num_contracts: float, contract_size: float | None) -> fl
     """
 
     if contract_size and contract_size != 1:
+        if num_contracts == 0:
+            return 0.0
         return float(FtPrecise(num_contracts) * FtPrecise(contract_size))
     else:
         return num_contracts
@@ -260,6 +267,8 @@ def amount_to_contract_precision(
     :param contract_size: contract size - taken from exchange.get_contract_size(pair)
     :return: truncated amount
     """
+    if amount == 0:
+        return 0.0
     if amount_precision is not None and precisionMode is not None:
         contracts = amount_to_contracts(amount, contract_size)
         amount_p = amount_to_precision(contracts, amount_precision, precisionMode)
@@ -276,16 +285,13 @@ def __price_to_precision_significant_digits(
     """
     Implementation of ROUND_UP/Round_down for significant digits mode.
     """
-    from decimal import ROUND_DOWN as dec_ROUND_DOWN
-    from decimal import ROUND_UP as dec_ROUND_UP
-    from decimal import Decimal
 
     dec = Decimal(str(price))
     string = f"{dec:f}"
     precision = round(price_precision)
 
     q = precision - dec.adjusted() - 1
-    sigfig = Decimal(10) ** -q
+    sigfig = Decimal("10") ** -q
     if q < 0:
         string_to_precision = string[:precision]
         # string_to_precision is '' when we have zero precision
@@ -342,7 +348,7 @@ def price_to_precision(
             precision = FtPrecise(price_precision)
             price_str = FtPrecise(price)
             missing = price_str % precision
-            if missing != FtPrecise("0"):
+            if not missing == FtPrecise("0"):
                 if rounding_mode == ROUND_UP:
                     res = price_str - missing + precision
                 elif rounding_mode == ROUND_DOWN:

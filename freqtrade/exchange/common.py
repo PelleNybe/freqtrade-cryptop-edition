@@ -39,15 +39,16 @@ BAD_EXCHANGES = {
     "bitmex": "Various reasons",
     "probit": "Requires additional, regular calls to `signIn()`",
     "poloniex": "Does not provide fetch_order endpoint to fetch both open and closed orders",
+    "krakenfutures": "Unsupported futures exchange",
     "kucoinfutures": "Unsupported futures exchange",
     "poloniexfutures": "Unsupported futures exchange",
     "binancecoinm": "Unsupported futures exchange",
 }
 
 MAP_EXCHANGE_CHILDCLASS = {
+    "okex": "okx",
     "gateio": "gate",
     "huboi": "htx",
-    "kucoineu": "kucoin",
 }
 
 SUPPORTED_EXCHANGES = [
@@ -55,15 +56,13 @@ SUPPORTED_EXCHANGES = [
     "binanceus",
     "binanceusdm",
     "bingx",
+    "bitmart",
     "bitget",
     "bybit",
-    "bybiteu",
     "gate",
-    "gateeu",
     "htx",
     "hyperliquid",
     "kraken",
-    "krakenfutures",
     "okx",
     "myokx",
 ]
@@ -111,14 +110,16 @@ EXCHANGE_HAS_OPTIONAL_FUTURES: dict[str, list[str]] = {
 }
 
 
-def calculate_backoff(remaining_retries, max_retries):
+def calculate_backoff(retrycount, max_retries):
     """
-    Calculate backoff
-    :param remaining_retries: Number of retries left - counts down with each attempt,
-                              so the delay increases with each retry.
-    :param max_retries: Maximum number of retries
+    Calculate backoff - EDGE OPTIMIZATION: Exponential backoff with jitter
+    to handle poor 4G/LTE or spotty Wi-Fi networks more gracefully.
     """
-    return (max_retries - remaining_retries) ** 2 + 1
+    import secrets
+
+    base = 2 ** (max_retries - retrycount)
+    jitter = 0.5 + secrets.SystemRandom().random()
+    return max(1.0, min(base * jitter, 30.0))
 
 
 def retrier_async(f):
@@ -153,7 +154,7 @@ def retrier_async(f):
                 return await wrapper(*args, **kwargs)
             else:
                 logger.warning(msg + "Giving up.")
-                raise
+                raise ex
 
     return wrapper
 
@@ -195,7 +196,7 @@ def retrier(_func: F | None = None, *, retries=API_RETRY_COUNT):
                     return wrapper(*args, **kwargs)
                 else:
                     logger.warning(msg + "Giving up.")
-                    raise
+                    raise ex
 
         return cast(F, wrapper)
 

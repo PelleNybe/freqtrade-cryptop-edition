@@ -4,7 +4,7 @@ Protection manager class
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from freqtrade.constants import Config, LongShort
 from freqtrade.exceptions import ConfigurationError
@@ -14,12 +14,16 @@ from freqtrade.plugins.protections import IProtection
 from freqtrade.resolvers import ProtectionResolver
 
 
+if TYPE_CHECKING:
+    from freqtrade.wallets import Wallets
+
 logger = logging.getLogger(__name__)
 
 
 class ProtectionManager:
-    def __init__(self, config: Config, protections: list) -> None:
+    def __init__(self, config: Config, protections: list, wallets: "Wallets | None" = None) -> None:
         self._config = config
+        self._wallets = wallets
 
         self._protection_handlers: list[IProtection] = []
         self.validate_protections(protections)
@@ -28,6 +32,7 @@ class ProtectionManager:
                 protection_handler_config["method"],
                 config=config,
                 protection_config=protection_handler_config,
+                wallets=wallets,
             )
             self._protection_handlers.append(protection_handler)
 
@@ -47,50 +52,34 @@ class ProtectionManager:
         """
         return [{p.name: p.short_desc()} for p in self._protection_handlers]
 
-    def global_stop(
-        self, now: datetime | None = None, side: LongShort = "long", starting_balance: float = 0.0
-    ) -> PairLock | None:
+    def global_stop(self, now: datetime | None = None, side: LongShort = "long") -> PairLock | None:
         if not now:
             now = datetime.now(UTC)
         result = None
         for protection_handler in self._protection_handlers:
             if protection_handler.has_global_stop:
-                lock = protection_handler.global_stop(
-                    date_now=now, side=side, starting_balance=starting_balance
-                )
-                if (
-                    lock
-                    and lock.until
-                    and not PairLocks.is_global_lock(lock.until, side=lock.lock_side)
-                ):
-                    result = PairLocks.lock_pair(
-                        "*", lock.until, lock.reason, now=now, side=lock.lock_side
-                    )
+                lock = protection_handler.global_stop(date_now=now, side=side)
+                if lock and lock.until:
+                    if not PairLocks.is_global_lock(lock.until, side=lock.lock_side):
+                        result = PairLocks.lock_pair(
+                            "*", lock.until, lock.reason, now=now, side=lock.lock_side
+                        )
         return result
 
     def stop_per_pair(
-        self,
-        pair,
-        now: datetime | None = None,
-        side: LongShort = "long",
-        starting_balance: float = 0.0,
+        self, pair, now: datetime | None = None, side: LongShort = "long"
     ) -> PairLock | None:
         if not now:
             now = datetime.now(UTC)
         result = None
         for protection_handler in self._protection_handlers:
             if protection_handler.has_local_stop:
-                lock = protection_handler.stop_per_pair(
-                    pair=pair, date_now=now, side=side, starting_balance=starting_balance
-                )
-                if (
-                    lock
-                    and lock.until
-                    and not PairLocks.is_pair_locked(pair, lock.until, lock.lock_side)
-                ):
-                    result = PairLocks.lock_pair(
-                        pair, lock.until, lock.reason, now=now, side=lock.lock_side
-                    )
+                lock = protection_handler.stop_per_pair(pair=pair, date_now=now, side=side)
+                if lock and lock.until:
+                    if not PairLocks.is_pair_locked(pair, lock.until, lock.lock_side):
+                        result = PairLocks.lock_pair(
+                            pair, lock.until, lock.reason, now=now, side=lock.lock_side
+                        )
         return result
 
     @staticmethod

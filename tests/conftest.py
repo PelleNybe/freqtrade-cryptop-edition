@@ -6,7 +6,7 @@ import re
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, Mock, PropertyMock
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,6 @@ from freqtrade.enums import CandleType, MarginMode, SignalDirection, TradingMode
 from freqtrade.exchange import Exchange, timeframe_to_minutes, timeframe_to_seconds
 from freqtrade.freqtradebot import FreqtradeBot
 from freqtrade.persistence import LocalTrade, Order, Trade, init_db
-from freqtrade.persistence.custom_data import _CustomData
 from freqtrade.resolvers import ExchangeResolver
 from freqtrade.system import set_mp_start_method
 from freqtrade.util import dt_now, dt_ts
@@ -87,6 +86,7 @@ class FixtureScheduler(LoadScopeScheduling):
                 return exchange_id
             except Exception as e:
                 print(e)
+                pass
 
         return nodeid
 
@@ -169,27 +169,25 @@ def generate_trades_history(n_rows, start_date: datetime | None = None, days=5):
     return df
 
 
-def generate_test_data(
-    timeframe: str, size: int, start: str = "2020-07-05", random_seed=42, base=20
-):
+def generate_test_data(timeframe: str, size: int, start: str = "2020-07-05", random_seed=42):
     np.random.seed(random_seed)
 
-    base = np.random.normal(base, 2, size=size)
+    base = np.random.normal(20, 2, size=size)
     if timeframe == "1y":
-        date = pd.date_range(start, periods=size, freq="1YS", tz="UTC", unit="ms")
+        date = pd.date_range(start, periods=size, freq="1YS", tz="UTC")
     elif timeframe == "1M":
-        date = pd.date_range(start, periods=size, freq="1MS", tz="UTC", unit="ms")
+        date = pd.date_range(start, periods=size, freq="1MS", tz="UTC")
     elif timeframe == "3M":
-        date = pd.date_range(start, periods=size, freq="3MS", tz="UTC", unit="ms")
+        date = pd.date_range(start, periods=size, freq="3MS", tz="UTC")
     elif timeframe == "1w" or timeframe == "7d":
-        date = pd.date_range(start, periods=size, freq="1W-MON", tz="UTC", unit="ms")
+        date = pd.date_range(start, periods=size, freq="1W-MON", tz="UTC")
     else:
         tf_mins = timeframe_to_minutes(timeframe)
         if tf_mins >= 1:
-            date = pd.date_range(start, periods=size, freq=f"{tf_mins}min", tz="UTC", unit="ms")
+            date = pd.date_range(start, periods=size, freq=f"{tf_mins}min", tz="UTC")
         else:
             tf_secs = timeframe_to_seconds(timeframe)
-            date = pd.date_range(start, periods=size, freq=f"{tf_secs}s", tz="UTC", unit="ms")
+            date = pd.date_range(start, periods=size, freq=f"{tf_secs}s", tz="UTC")
     df = pd.DataFrame(
         {
             "date": date,
@@ -207,8 +205,37 @@ def generate_test_data(
 def generate_test_data_raw(timeframe: str, size: int, start: str = "2020-07-05", random_seed=42):
     """Generates data in the ohlcv format used by ccxt"""
     df = generate_test_data(timeframe, size, start, random_seed)
-    df["date"] = df.loc[:, "date"].dt.as_unit("ms").astype("int64")
-    return [list(x) for x in zip(*(df[x].values.tolist() for x in df.columns), strict=False)]
+    values = df.loc[:, "date"].astype(np.int64)
+    if values[0] > 1e16:
+        # Nanoseconds (1.6e18)
+        df["date"] = values // 1_000_000
+    elif values[0] > 1e13:
+        # Microseconds (1.6e15)
+        df["date"] = values // 1_000
+    else:
+        # Milliseconds or Seconds
+        df["date"] = values
+    return list(list(x) for x in zip(*(df[x].values.tolist() for x in df.columns), strict=False))
+
+
+# Source: https://stackoverflow.com/questions/29881236/how-to-mock-asyncio-coroutines
+# TODO: This should be replaced with AsyncMock once support for python 3.7 is dropped.
+def get_mock_coro(return_value=None, side_effect=None):
+    async def mock_coro(*args, **kwargs):
+        if side_effect:
+            if isinstance(side_effect, list):
+                effect = side_effect.pop(0)
+            else:
+                effect = side_effect
+            if isinstance(effect, Exception):
+                raise effect
+            if callable(effect):
+                return effect(*args, **kwargs)
+            return effect
+        else:
+            return return_value
+
+    return Mock(wraps=mock_coro)
 
 
 def patched_configuration_load_config_file(mocker, config) -> None:
@@ -222,7 +249,6 @@ def patch_exchange(
 ) -> None:
     mocker.patch(f"{EXMS}.validate_config", MagicMock())
     mocker.patch(f"{EXMS}.validate_timeframes", MagicMock())
-    mocker.patch(f"{EXMS}.check_time_offset", MagicMock())
     mocker.patch(f"{EXMS}.id", PropertyMock(return_value=exchange))
     mocker.patch(f"{EXMS}.name", PropertyMock(return_value=exchange.title()))
     mocker.patch(f"{EXMS}.precisionMode", PropertyMock(return_value=2))
@@ -514,9 +540,6 @@ def patch_torch_initlogs(mocker) -> None:
 
         module_name = "torch"
         mocked_module = types.ModuleType(module_name)
-        # SciPy's array-API dispatch probes ``torch.Tensor`` to classify inputs;
-        # expose a dummy so scipy.stats stays importable/usable under the mock.
-        mocked_module.Tensor = type("Tensor", (), {})
         sys.modules[module_name] = mocked_module
     else:
         try:
@@ -563,21 +586,6 @@ def patch_coingecko(mocker) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def dispose_db_engine():
-    """
-    Dispose the database engine after each test to release its pooled connection.
-    Without this, leaked connections accumulate and are finalized at random points
-    by the GC, emitting ResourceWarnings in unrelated tests.
-    """
-    yield
-    if (session := getattr(Trade, "session", None)) is not None:
-        bind = session.get_bind()
-        session.remove()
-        _CustomData.session.remove()
-        bind.dispose()
-
-
 @pytest.fixture(scope="function")
 def init_persistence(default_conf):
     init_db(default_conf["db_url"])
@@ -605,7 +613,6 @@ def get_default_conf(testdatadir):
         "cancel_open_orders_on_exit": False,
         "minimal_roi": {"40": 0.0, "30": 0.01, "20": 0.02, "0": 0.04},
         "dry_run_wallet": 1000,
-        "tradable_balance_ratio": 0.99,
         "stoploss": -0.10,
         "unfilledtimeout": {"entry": 10, "exit": 30},
         "entry_pricing": {
@@ -620,7 +627,7 @@ def get_default_conf(testdatadir):
         },
         "exchange": {
             "name": "binance",
-            "api_key": "key",
+            "key": "key",
             "enable_ws": False,
             "secret": "secret",
             "pair_whitelist": ["ETH/BTC", "LTC/BTC", "XRP/BTC", "NEO/BTC"],
@@ -666,7 +673,7 @@ def get_default_conf_usdt(testdatadir):
             "exchange": {
                 "name": "binance",
                 "enabled": True,
-                "api_key": "key",
+                "key": "key",
                 "enable_ws": False,
                 "secret": "secret",
                 "pair_whitelist": [

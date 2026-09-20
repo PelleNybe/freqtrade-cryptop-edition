@@ -16,7 +16,6 @@ from freqtrade.loggers.set_log_levels import (
 )
 from freqtrade.optimize.analysis.base_analysis import BaseAnalysis, VarHolder
 from freqtrade.optimize.backtesting import Backtesting
-from freqtrade.util import CustomProgress
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,7 @@ class RecursiveAnalysis(BaseAnalysis):
         self.partial_varHolder_array: list[VarHolder] = []
         self.partial_varHolder_lookahead_array: list[VarHolder] = []
 
-        self.dict_recursive: dict[str, dict[int, float]] = {}
+        self.dict_recursive: dict[str, Any] = dict()
 
         self.pair_to_used: str | None = None
         self._strat_scc: int | None = None
@@ -77,12 +76,11 @@ class RecursiveAnalysis(BaseAnalysis):
                             and is_number(values_diff_self)
                             and is_number(values_diff_other)
                         ):
-                            diff = round(
-                                (values_diff_other - values_diff_self) / values_diff_self, 12
-                            )
+                            diff = (values_diff_other - values_diff_self) / values_diff_self * 100
+                            str_diff = f"{diff:.3f}%"
                         else:
-                            diff = "nan"
-                        self.dict_recursive[indicator][part.startup_candle] = float(diff)
+                            str_diff = "NaN"
+                        self.dict_recursive[indicator][part.startup_candle] = str_diff
 
             else:
                 logger.info("No variance on indicator(s) found due to recursive formula.")
@@ -199,8 +197,8 @@ class RecursiveAnalysis(BaseAnalysis):
 
         self.partial_varHolder_lookahead_array.append(partial_varHolder)
 
-    def start(self, progress: CustomProgress) -> None:
-        self.fill_full_varholder()
+    def start(self) -> None:
+        super().start()
 
         reduce_verbosity_for_bias_tester()
         start_date_full = self.full_varHolder.from_dt
@@ -216,11 +214,8 @@ class RecursiveAnalysis(BaseAnalysis):
 
         start_date_partial = end_date_full - timedelta(minutes=int(timeframe_minutes))
 
-        candle_task = progress.add_task("Startup candles", total=len(self._startup_candle))
         for startup_candle in self._startup_candle:
-            progress.update(candle_task, description=f"Startup candle {startup_candle}")
             self.fill_partial_varholder(start_date_partial, startup_candle)
-            progress.update(candle_task, advance=1)
 
         # Restore verbosity, so it's not too quiet for the next strategy
         restore_verbosity_for_bias_tester()

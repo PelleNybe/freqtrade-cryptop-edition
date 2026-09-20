@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, cast
 
 from pandas import DataFrame
@@ -20,11 +21,13 @@ class BacktestResultType(TypedDict):
 def get_BacktestResultType_default() -> BacktestResultType:
     return cast(
         BacktestResultType,
-        {
-            "metadata": {},
-            "strategy": {},
-            "strategy_comparison": [],
-        },
+        deepcopy(
+            {
+                "metadata": {},
+                "strategy": {},
+                "strategy_comparison": [],
+            }
+        ),
     )
 
 
@@ -52,7 +55,6 @@ class BacktestContentTypeIcomplete(TypedDict, total=False):
     backtest_start_time: int
     backtest_end_time: int
     run_id: str
-    wallet_summary: DataFrame
 
 
 class BacktestContentType(BacktestContentTypeIcomplete, total=True):

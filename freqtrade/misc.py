@@ -8,9 +8,8 @@ from collections.abc import Iterator, Mapping
 from io import StringIO
 from pathlib import Path
 from typing import Any, TextIO
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
-import orjson
 import pandas as pd
 import rapidjson
 
@@ -26,9 +25,7 @@ def dump_json_to_file(file_obj: TextIO, data: Any) -> None:
     :param file_obj: File object to write to
     :param data: JSON Data to save
     """
-    file_obj.write(
-        orjson.dumps(data, default=str, option=orjson.OPT_SERIALIZE_NUMPY).decode("utf-8")
-    )
+    rapidjson.dump(data, file_obj, default=str, number_mode=rapidjson.NM_NATIVE | rapidjson.NM_NAN)
 
 
 def file_dump_json(filename: Path, data: Any, is_zip: bool = False, log: bool = True) -> None:
@@ -63,7 +60,7 @@ def json_load(datafile: TextIO) -> Any:
     Use this to have a consistent experience,
     set number_mode to "NM_NATIVE" for greatest speed
     """
-    return rapidjson.load(datafile, number_mode=rapidjson.NM_NATIVE)
+    return rapidjson.load(datafile, number_mode=rapidjson.NM_NATIVE | rapidjson.NM_NAN)
 
 
 def file_load_json(file: Path):
@@ -87,20 +84,18 @@ def file_load_json(file: Path):
 
 def is_file_in_dir(file: Path, directory: Path) -> bool:
     """
-    Helper function to check if file is directly within a directory.
-    :param file: File to check
-    :param directory: Directory to check against
-        When used in the API, this parameter cannot be user controlled (outside of the config)
-        to avoid security issues.
-    :return: True if file is directly within directory, False otherwise
+    Helper function to check if file is in directory.
     """
     return file.is_file() and file.parent.samefile(directory)
 
 
+_PAIR_TO_FILENAME_TRANS = str.maketrans(
+    {"/": "_", " ": "_", ".": "_", "@": "_", "$": "_", "+": "_", ":": "_", "\\": "_"}
+)
+
+
 def pair_to_filename(pair: str) -> str:
-    for ch in ["/", " ", ".", "@", "$", "+", ":"]:
-        pair = pair.replace(ch, "_")
-    return pair
+    return pair.translate(_PAIR_TO_FILENAME_TRANS)
 
 
 def deep_merge_dicts(source, destination, allow_null_overrides: bool = True):
@@ -133,38 +128,16 @@ def round_dict(d, n):
 DictMap = dict[str, Any] | Mapping[str, Any]
 
 
-def safe_value_nested(obj: DictMap, keys: str, default_value=None):
-    """
-    Search a nested dict for a value.
-    :param obj: dict to search in
-    :param keys: dot separated keys to search for
-    :param default_value: value to return if the key is not found or value is None
-    :return: value found in dict or default_value
-     Sample:
-    >>> d = { 'first' : { 'rows' : { 'pass' : 'dog', 'number' : '1' } } }
-    >>> safe_value_nested(d, "first.rows.pass") == "dog"
-    True
-    """
-    nested_obj = obj
-    for key in keys.split("."):
-        if isinstance(nested_obj, Mapping) and key in nested_obj and nested_obj[key] is not None:
-            nested_obj = nested_obj[key]
-        else:
-            return default_value
-    return nested_obj
-
-
 def safe_value_fallback(obj: DictMap, key1: str, key2: str | None = None, default_value=None):
     """
     Search a value in obj, return this if it's not None.
     Then search key2 in obj - return that if it's not none - then use default_value.
     Else falls back to None.
     """
-    if key1 in obj and obj[key1] is not None:
-        return obj[key1]
-    else:
-        if key2 and key2 in obj and obj[key2] is not None:
-            return obj[key2]
+    if (v1 := obj.get(key1)) is not None:
+        return v1
+    if key2 and (v2 := obj.get(key2)) is not None:
+        return v2
     return default_value
 
 
@@ -175,11 +148,10 @@ def safe_value_fallback2(dict1: DictMap, dict2: DictMap, key1: str, key2: str, d
     Else falls back to None.
 
     """
-    if key1 in dict1 and dict1[key1] is not None:
-        return dict1[key1]
-    else:
-        if key2 in dict2 and dict2[key2] is not None:
-            return dict2[key2]
+    if (v1 := dict1.get(key1)) is not None:
+        return v1
+    if (v2 := dict2.get(key2)) is not None:
+        return v2
     return default_value
 
 
@@ -205,10 +177,10 @@ def parse_db_uri_for_logging(uri: str):
     :param uri: DB URI to parse for logging
     """
     parsed_db_uri = urlparse(uri)
-    if parsed_db_uri.password is None:  # No need for censoring as no password was provided
+    if not parsed_db_uri.netloc:  # No need for censoring as no password was provided
         return uri
-    netloc = parsed_db_uri.netloc.replace(f":{parsed_db_uri.password}@", ":*****@", 1)
-    return urlunparse(parsed_db_uri._replace(netloc=netloc))
+    pwd = parsed_db_uri.netloc.split(":")[1].split("@")[0]
+    return parsed_db_uri.geturl().replace(f":{pwd}@", ":*****@")
 
 
 def dataframe_to_json(dataframe: pd.DataFrame) -> str:
@@ -217,12 +189,6 @@ def dataframe_to_json(dataframe: pd.DataFrame) -> str:
     :param dataframe: A pandas DataFrame
     :returns: A JSON string of the pandas DataFrame
     """
-    date_columns = dataframe.select_dtypes(include=["datetime", "datetime64", "datetimetz"])
-    # Explicit conversion to ms
-    # This used to be part of to_json, but was deprecated in pandas 3
-    for date_column in date_columns:
-        dataframe[date_column] = date_columns[date_column].dt.as_unit("ms").astype("int64")
-
     return dataframe.to_json(orient="split")
 
 
@@ -232,7 +198,16 @@ def json_to_dataframe(data: str) -> pd.DataFrame:
     :param data: A JSON string
     :returns: A pandas DataFrame from the JSON string
     """
-    dataframe = pd.read_json(StringIO(data), orient="split")
+    try:
+        # Optimize parsing using rapidjson directly
+        json_dict = rapidjson.loads(data, number_mode=rapidjson.NM_NATIVE | rapidjson.NM_NAN)
+        dataframe = pd.DataFrame(
+            json_dict["data"], columns=json_dict["columns"], index=json_dict["index"]
+        )
+    except (ValueError, KeyError, rapidjson.JSONDecodeError):
+        # Fallback to pandas if structure is not matching 'split' or other errors
+        dataframe = pd.read_json(StringIO(data), orient="split")
+
     if "date" in dataframe.columns:
         dataframe["date"] = pd.to_datetime(dataframe["date"], unit="ms", utc=True)
 
@@ -268,6 +243,6 @@ def append_candles_to_dataframe(left: pd.DataFrame, right: pd.DataFrame) -> pd.D
 
     # Only keep the last 1500 candles in memory
     left = left[-1500:] if len(left) > 1500 else left
-    left.reset_index(drop=True, inplace=True)
+    left = left.reset_index(drop=True)
 
     return left

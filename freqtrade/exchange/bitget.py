@@ -4,10 +4,9 @@ from datetime import datetime, timedelta
 import ccxt
 
 from freqtrade.constants import BuySell
-from freqtrade.enums import OPTIMIZE_MODES, CandleType, MarginMode, PriceType, TradingMode
+from freqtrade.enums import OPTIMIZE_MODES, CandleType, MarginMode, TradingMode
 from freqtrade.exceptions import (
     DDosProtection,
-    InvalidOrderException,
     OperationalException,
     RetryableOrderError,
     TemporaryError,
@@ -39,21 +38,12 @@ class Bitget(Exchange):
     _ft_has_futures: FtHas = {
         "funding_fee_candle_limit": 100,
         "has_delisting": True,
-        "stop_price_param": "stopLossPrice",
-        "stop_price_prop": "stopLossPrice",
-        "stop_price_type_field": "triggerType",
-        "stop_price_type_value_mapping": {
-            PriceType.LAST: "fill_price",
-            PriceType.MARK: "mark_price",
-        },
-        # ccxt maps "total" to accountEquity, which includes unrealized PnL
-        "balance_includes_unrealized_pnl": True,
     }
 
     _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
         (TradingMode.SPOT, MarginMode.NONE),
         (TradingMode.FUTURES, MarginMode.ISOLATED),
-        # (TradingMode.FUTURES, MarginMode.CROSS),
+        (TradingMode.FUTURES, MarginMode.CROSS),
     ]
 
     def ohlcv_candle_limit(
@@ -65,7 +55,7 @@ class Bitget(Exchange):
         * 1000 candles for up-to-date data
         * 200 candles for historic data (prior to a certain date)
         :param timeframe: Timeframe to check
-        :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
+        :param candle_type: Candle-type
         :param since_ms: Starting timestamp
         :return: Candle limit as integer
         """
@@ -104,36 +94,30 @@ class Bitget(Exchange):
         return order
 
     def _fetch_stop_order_fallback(self, order_id: str, pair: str) -> CcxtOrder:
-        # old stoploss orders
-        paramsold = {"stop": True}
-        # new stoploss orders with stopLossPrice (used in futures starting 2026.4)
-        paramsnew = {"planType": "profit_loss"}
-        params_to_try = (
-            (paramsnew, paramsold) if self.trading_mode == TradingMode.FUTURES else (paramsold,)
-        )
-
-        for params2 in params_to_try:
-            for method in (
-                self._api.fetch_open_orders,
-                self._api.fetch_canceled_and_closed_orders,
-            ):
-                try:
-                    orders = method(pair, params=params2)
-                    orders_f = [order for order in orders if order["id"] == order_id]
-                    if orders_f:
-                        order = orders_f[0]
-                        self._log_exchange_response("get_stop_order_fallback", order)
-                        return self._convert_stop_order(pair, order_id, order)
-                except (ccxt.OrderNotFound, ccxt.InvalidOrder):
-                    pass
-                except ccxt.DDoSProtection as e:
-                    raise DDosProtection(e) from e
-                except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
-                    raise TemporaryError(
-                        f"Could not get order due to {e.__class__.__name__}. Message: {e}"
-                    ) from e
-                except ccxt.BaseError as e:
-                    raise OperationalException(e) from e
+        params2 = {
+            "stop": True,
+        }
+        for method in (
+            self._api.fetch_open_orders,
+            self._api.fetch_canceled_and_closed_orders,
+        ):
+            try:
+                orders = method(pair, params=params2)
+                orders_f = [order for order in orders if order["id"] == order_id]
+                if orders_f:
+                    order = orders_f[0]
+                    self._log_exchange_response("get_stop_order_fallback", order)
+                    return self._convert_stop_order(pair, order_id, order)
+            except (ccxt.OrderNotFound, ccxt.InvalidOrder):
+                pass
+            except ccxt.DDoSProtection as e:
+                raise DDosProtection(e) from e
+            except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
+                raise TemporaryError(
+                    f"Could not get order due to {e.__class__.__name__}. Message: {e}"
+                ) from e
+            except ccxt.BaseError as e:
+                raise OperationalException(e) from e
         raise RetryableOrderError(f"StoplossOrder not found (pair: {pair} id: {order_id}).")
 
     @retrier(retries=API_RETRY_COUNT)
@@ -145,19 +129,6 @@ class Bitget(Exchange):
 
         return self._fetch_stop_order_fallback(order_id, pair)
 
-    def cancel_stoploss_order(self, order_id: str, pair: str, params: dict | None = None) -> dict:
-        cancel_params = params.copy() if params else {}
-        cancel_params["stop"] = True
-
-        if self.trading_mode != TradingMode.FUTURES:
-            return self.cancel_order(order_id, pair, cancel_params)
-
-        try:
-            return self.cancel_order(order_id, pair, {**cancel_params, "planType": "pos_loss"})
-        except (InvalidOrderException, IndexError):
-            # Keep compatibility with stoploss orders created by older versions.
-            return self.cancel_order(order_id, pair, cancel_params)
-
     @retrier
     def additional_exchange_init(self) -> None:
         """
@@ -166,9 +137,10 @@ class Bitget(Exchange):
         Must be overridden in child methods if required.
         """
         try:
-            if not self._config["dry_run"] and self.trading_mode == TradingMode.FUTURES:
-                position_mode = self._api.set_position_mode(False)
-                self._log_exchange_response("set_position_mode", position_mode)
+            if not self._config["dry_run"]:
+                if self.trading_mode == TradingMode.FUTURES:
+                    position_mode = self._api.set_position_mode(False)
+                    self._log_exchange_response("set_position_mode", position_mode)
         except ccxt.DDoSProtection as e:
             raise DDosProtection(e) from e
         except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
@@ -177,6 +149,12 @@ class Bitget(Exchange):
             ) from e
         except ccxt.BaseError as e:
             raise OperationalException(e) from e
+
+    def _lev_prep(self, pair: str, leverage: float, side: BuySell, accept_fail: bool = False):
+        if self.trading_mode != TradingMode.SPOT:
+            # Explicitly setting margin_mode is not necessary as marginMode can be set per order.
+            # self.set_margin_mode(pair, self.margin_mode, accept_fail)
+            self._set_leverage(leverage, pair, accept_fail)
 
     def _get_params(
         self,
@@ -246,16 +224,14 @@ class Bitget(Exchange):
         ).get("taker", 0.001)
         mm_ratio, _ = self.get_maintenance_ratio_and_amt(pair, stake_amount)
 
-        if self.trading_mode == TradingMode.FUTURES and self.margin_mode == MarginMode.ISOLATED:
+        if self.trading_mode == TradingMode.FUTURES:
             position_direction = -1 if is_short else 1
 
             return (wallet_balance - (amount * open_rate * position_direction)) / (
                 amount * (mm_ratio + taker_fee_rate - position_direction)
             )
         else:
-            raise OperationalException(
-                "Freqtrade currently only supports isolated futures for bitget"
-            )
+            raise OperationalException("Freqtrade only supports futures for bitget")
 
     def check_delisting_time(self, pair: str) -> datetime | None:
         """

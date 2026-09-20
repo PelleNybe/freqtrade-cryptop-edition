@@ -11,7 +11,7 @@ usage: freqtrade download-data [-h] [-v] [--no-color] [--logfile FILE] [-V]
                                [--data-format-ohlcv {json,jsongz,feather,parquet}]
                                [--data-format-trades {json,jsongz,feather,parquet}]
                                [--trading-mode {spot,margin,futures}]
-                               [--candle-types {spot,futures,mark,index,premiumIndex,funding_rate,open_interest} [{spot,futures,mark,index,premiumIndex,funding_rate,open_interest} ...]]
+                               [--candle-types {spot,futures,mark,index,premiumIndex,funding_rate} [{spot,futures,mark,index,premiumIndex,funding_rate} ...]]
                                [--prepend]
 
 options:
@@ -30,9 +30,7 @@ options:
                         Disable parallel startup download. Only use this if
                         you experience issues.
   --timerange TIMERANGE
-                        Limit action to a specific timerange. Format:
-                        (`yyyymmdd` or `yyyymmddThhmm` - e.g.
-                        `20240101-20240201T1200`).
+                        Specify what timerange of data to use.
   --dl-trades           Download trades instead of OHLCV data.
   --convert             Convert downloaded trades to OHLCV data. Only
                         applicable in combination with `--dl-trades`. Will be
@@ -53,7 +51,7 @@ options:
                         `feather`).
   --trading-mode, --tradingmode {spot,margin,futures}
                         Select Trading mode
-  --candle-types {spot,futures,mark,index,premiumIndex,funding_rate,open_interest} [{spot,futures,mark,index,premiumIndex,funding_rate,open_interest} ...]
+  --candle-types {spot,futures,mark,index,premiumIndex,funding_rate} [{spot,futures,mark,index,premiumIndex,funding_rate} ...]
                         Select candle type to download. Defaults to the
                         necessary candles for the selected trading mode (e.g.
                         'spot' or ('futures', 'funding_rate' and 'mark') for

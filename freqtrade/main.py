@@ -6,6 +6,7 @@ Read the documentation to know what cli arguments you need.
 
 import logging
 import sys
+from typing import Any
 
 
 # check min. python version
@@ -34,7 +35,7 @@ def main(sysargv: list[str] | None = None) -> None:
     :return: None
     """
 
-    return_code: int | None = None
+    return_code: Any = 1
     try:
         setup_logging_pre()
         asyncio_setup()
@@ -46,14 +47,14 @@ def main(sysargv: list[str] | None = None) -> None:
             print_version_info()
             return_code = 0
         elif "func" in args:
-            logger.info(f"freqtrade {__version__}")
+            logger.info(f"Freqtrade - Crypto P Edition {__version__}")
             gc_set_threshold()
             set_mp_start_method()
             return_code = args["func"](args)
         else:
             # No subcommand was issued.
             raise OperationalException(
-                "Usage of Freqtrade requires a subcommand to be specified.\n"
+                "Usage of Freqtrade - Crypto P Edition requires a subcommand to be specified.\n"
                 "To have the bot executing trades in live/dry-run modes, "
                 "depending on the value of the `dry_run` setting in the config, run Freqtrade "
                 "as `freqtrade trade [options...]`.\n"
@@ -61,9 +62,11 @@ def main(sysargv: list[str] | None = None) -> None:
                 "`freqtrade --help` or `freqtrade <command> --help`."
             )
 
+    except SystemExit as e:  # pragma: no cover
+        return_code = e
     except KeyboardInterrupt:
         logger.info("SIGINT received, aborting ...")
-        return_code = 130
+        return_code = 0
     except ConfigurationError as e:
         logger.error(
             f"Configuration error: {e}\n"
@@ -74,7 +77,6 @@ def main(sysargv: list[str] | None = None) -> None:
         return_code = 2
     except Exception:
         logger.exception("Fatal exception!")
-        return_code = 1
     finally:
         sys.exit(return_code)
 

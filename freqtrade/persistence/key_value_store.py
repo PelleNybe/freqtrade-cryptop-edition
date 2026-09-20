@@ -18,13 +18,10 @@ class ValueTypesEnum(StrEnum):
     INT = "int"
 
 
-# must be < 50 characters to fit the database column
 KeyStoreKeys = Literal[
     "bot_start_time",
     "startup_time",
     "binance_migration",
-    "wallet_history_migration",
-    "wallet_history_migration_date",
 ]
 
 
@@ -38,7 +35,7 @@ class _KeyValueStoreModel(ModelBase):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    key: Mapped[KeyStoreKeys] = mapped_column(String(50), nullable=False, index=True)
+    key: Mapped[KeyStoreKeys] = mapped_column(String(25), nullable=False, index=True)
 
     value_type: Mapped[ValueTypesEnum] = mapped_column(String(20), nullable=False)
 

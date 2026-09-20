@@ -17,18 +17,21 @@ All protection end times are rounded up to the next candle to avoid sudden, unex
 * [`MaxDrawdown`](#maxdrawdown) Stop trading if max-drawdown is reached.
 * [`LowProfitPairs`](#low-profit-pairs) Lock pairs with low profits
 * [`CooldownPeriod`](#cooldown-period) Don't enter a trade right after selling a trade.
+* [`ConsecutiveLossGuard`](#consecutive-loss-guard) Stop trading after a streak of consecutive losses.
+* [`ConsecutiveWinGuard`](#consecutive-win-guard) Stop trading after a streak of consecutive wins.
+* [`TakeProfitGuard`](#take-profit-guard) Stop trading when a specific absolute or relative profit is reached.
 
 ### Common settings to all Protections
 
-| Parameter | Description |
-| --------- | ---------- |
-| `method` | Protection name to use. <br> **Datatype:** String, selected from [available Protections](#available-protections) |
-| `stop_duration_candles` | For how many candles should the lock be set? <br> **Datatype:** Positive integer (in candles) |
-| `stop_duration` | how many minutes should protections be locked. <br>Cannot be used together with `stop_duration_candles`. <br> **Datatype:** Float (in minutes) |
-| `lookback_period_candles` | Only trades that completed within the last `lookback_period_candles` candles will be considered. This setting may be ignored by some Protections. <br> **Datatype:** Positive integer (in candles). |
-| `lookback_period` | Only trades that completed after `current_time - lookback_period` will be considered. <br>Cannot be used together with `lookback_period_candles`. <br>This setting may be ignored by some Protections. <br> **Datatype:**  Float (in minutes) |
-| `trade_limit` | Number of trades required at minimum (not used by all Protections). <br> **Datatype:** Positive integer |
-| `unlock_at` | Time when trading will be unlocked regularly (not used by all Protections). <br> **Datatype:** string <br>**Input Format:** "HH:MM" (24-hours) |
+|  Parameter| Description |
+|------------|-------------|
+| `method` | Protection name to use. <br> **Datatype:** String, selected from [available Protections](#available-protections)
+| `stop_duration_candles` | For how many candles should the lock be set? <br> **Datatype:** Positive integer (in candles)
+| `stop_duration` | how many minutes should protections be locked. <br>Cannot be used together with `stop_duration_candles`. <br> **Datatype:** Float (in minutes)
+| `lookback_period_candles` | Only trades that completed within the last `lookback_period_candles` candles will be considered. This setting may be ignored by some Protections. <br> **Datatype:** Positive integer (in candles).
+| `lookback_period` | Only trades that completed after `current_time - lookback_period` will be considered. <br>Cannot be used together with `lookback_period_candles`. <br>This setting may be ignored by some Protections. <br> **Datatype:**  Float (in minutes)
+| `trade_limit` | Number of trades required at minimum (not used by all Protections). <br> **Datatype:** Positive integer
+| `unlock_at` | Time when trading will be unlocked regularly (not used by all Protections). <br> **Datatype:** string <br>**Input Format:** "HH:MM" (24-hours)
 
 !!! Note "Durations"
     Durations (`stop_duration*` and `lookback_period*` can be defined in either minutes or candles).
@@ -69,17 +72,7 @@ def protections(self):
 
 #### MaxDrawdown
 
-The `MaxDrawdown` protection evaluates trades that closed within the current `lookback_period` (or `lookback_period_candles`).  
-It supports 2 calculation modes:
-
-- `calculation_mode: "ratios"` (default): Legacy approximation based on cumulative profit ratios.
-- `calculation_mode: "equity"`: Standard peak-to-trough drawdown on the account equity curve, using starting balance and cumulative absolute profit.
-
-With `calculation_mode: "ratios"`, drawdown is derived from cumulative trade profit ratios, not from the account equity curve. This is kept for backward compatibility and can differ from account-level drawdown when position sizing changes over time.
-
-For new setups, `calculation_mode: "equity"` is recommended. Prefer `calculation_mode: "ratios"` only when you intentionally rely on legacy behavior, especially with fixed stake amount configurations where ratio-based behavior is easier to reason about.
-
-If the observed drawdown exceeds `max_allowed_drawdown`, trading will stop for `stop_duration` after the last trade - assuming that the bot needs some time to let markets recover.
+`MaxDrawdown` uses all trades within `lookback_period` in minutes (or in candles when using `lookback_period_candles`) to determine the maximum drawdown. If the drawdown is below `max_allowed_drawdown`, trading will stop for `stop_duration` in minutes (or in candles when using `stop_duration_candles`) after the last trade - assuming that the bot needs some time to let markets recover.
 
 The below sample stops trading for 12 candles if max-drawdown is > 20% considering all pairs - with a minimum of `trade_limit` trades - within the last 48 candles. If desired, `lookback_period` and/or `stop_duration` can be used.
 
@@ -89,7 +82,6 @@ def protections(self):
     return  [
         {
             "method": "MaxDrawdown",
-            "calculation_mode": "equity",
             "lookback_period_candles": 48,
             "trade_limit": 20,
             "stop_duration_candles": 12,
@@ -143,6 +135,65 @@ def protections(self):
     This Protection applies only at pair-level, and will never lock all pairs globally.
     This Protection does not consider `lookback_period` as it only looks at the latest trade.
 
+#### Consecutive Loss Guard
+
+`ConsecutiveLossGuard` uses all trades within `lookback_period` in minutes (or in candles when using `lookback_period_candles`) to determine if a streak of consecutive losses has occurred.
+If `trade_limit` or more consecutive trades resulted in a loss, trading will stop for `stop_duration` in minutes (or in candles when using `stop_duration_candles`, or until the set time when using `unlock_at`).
+
+This applies across all pairs, unless `only_per_pair` is set to true, which will then only look at one pair at a time.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "ConsecutiveLossGuard",
+            "lookback_period_candles": 24,
+            "trade_limit": 3,
+            "stop_duration_candles": 4,
+            "only_per_pair": False
+        }
+    ]
+```
+
+#### Consecutive Win Guard
+
+`ConsecutiveWinGuard` works exactly like `ConsecutiveLossGuard`, but stops trading after a streak of consecutive wins. This can be used to lock in profits after a winning streak and prevent giving them back to the market during an anticipated mean reversion.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "ConsecutiveWinGuard",
+            "lookback_period_candles": 24,
+            "trade_limit": 3,
+            "stop_duration_candles": 4,
+            "only_per_pair": False
+        }
+    ]
+```
+
+#### Take Profit Guard
+
+`TakeProfitGuard` uses all trades within `lookback_period` in minutes (or in candles when using `lookback_period_candles`) to determine if a specific profit target has been reached.
+If the combined absolute profit (`target_profit_abs`) or percentage profit (`target_profit_pct`) reaches the target, trading will stop for `stop_duration` in minutes (or in candles when using `stop_duration_candles`, or until the set time when using `unlock_at`).
+
+The percentage profit (`target_profit_pct`) is calculated relative to the starting balance of the lookback period.
+
+``` python
+@property
+def protections(self):
+    return [
+        {
+            "method": "TakeProfitGuard",
+            "lookback_period_candles": 24,
+            "target_profit_pct": 5.0, # Stop trading if we make 5% profit
+            "stop_duration_candles": 12
+        }
+    ]
+```
+
 ### Full example of Protections
 
 All protections can be combined at will, also with different parameters, creating a increasing wall for under-performing pairs.
@@ -171,7 +222,6 @@ class AwesomeStrategy(IStrategy)
             },
             {
                 "method": "MaxDrawdown",
-                "calculation_mode": "equity",
                 "lookback_period_candles": 48,
                 "trade_limit": 20,
                 "stop_duration_candles": 4,

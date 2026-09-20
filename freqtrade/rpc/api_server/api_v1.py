@@ -22,13 +22,7 @@ from freqtrade.rpc.api_server.api_schemas import (
     SysInfo,
     Version,
 )
-from freqtrade.rpc.api_server.deps import (
-    get_config,
-    get_exchange,
-    get_rpc,
-    get_rpc_optional,
-    verify_strategy,
-)
+from freqtrade.rpc.api_server.deps import get_config, get_exchange, get_rpc, get_rpc_optional
 from freqtrade.rpc.rpc import RPCException
 
 
@@ -69,10 +63,7 @@ logger = logging.getLogger(__name__)
 # 2.45: Add price to forceexit endpoint
 # 2.46: Add prepend_data to download-data endpoint
 # 2.47: Add Strategy parameters
-# 2.48: Add /backtest/history/wallets endpoint
-# 2.49: Add /lookahead_analysis and /recursive_analysis endpoints and background job deletion
-# 2.50: Updated supported timerange to include hour/minute precision.
-API_VERSION = 2.50
+API_VERSION = 2.47
 
 # Public API, requires no auth.
 router_public = APIRouter()
@@ -81,12 +72,8 @@ router = APIRouter()
 
 
 @router_public.get("/ping", response_model=Ping, tags=["Info"])
-@router_public.head("/ping", response_model=Ping, tags=["Info"])
 def ping():
-    """simple ping to check if API is responsive
-
-    Performs no internal checks, just returns pong.
-    """
+    """simple ping"""
     return {"status": "pong"}
 
 
@@ -96,9 +83,7 @@ def version():
     return {"version": __version__}
 
 
-@router.get(
-    "/show_config", response_model=ShowConfig, tags=["Info"], response_model_exclude_unset=True
-)
+@router.get("/show_config", response_model=ShowConfig, tags=["Info"])
 def show_config(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
     state: State | str = ""
     strategy_version = None
@@ -111,7 +96,7 @@ def show_config(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_
 
 
 @router.get("/logs", response_model=Logs, tags=["Info"])
-def logs(limit: int | None = None):
+def logs(limit: int = Query(100, ge=1, le=10000)):
     return RPC._rpc_get_logs(limit)
 
 
@@ -152,7 +137,6 @@ def markets(
         "markets": exchange.get_markets(
             base_currencies=[query.base] if query.base else None,
             quote_currencies=[query.quote] if query.quote else None,
-            active_only=not query.include_inactive,
         ),
         "exchange_id": exchange.id,
     }
@@ -162,7 +146,8 @@ def markets(
 def get_strategy(
     strategy: str, config=Depends(get_config), rpc: RPC | None = Depends(get_rpc_optional)
 ):
-    verify_strategy(strategy)
+    if ":" in strategy:
+        raise HTTPException(status_code=422, detail="base64 encoded strategies are not allowed.")
 
     if not rpc or config["runmode"] == RunMode.WEBSERVER:
         # webserver mode

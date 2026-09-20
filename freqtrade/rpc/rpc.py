@@ -8,11 +8,12 @@ from collections.abc import Generator, Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+import pandas as pd
 import psutil
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
-from numpy import inf, isnan, mean, nan
-from pandas import DataFrame, NaT, read_sql
+from numpy import inf, int64, isnan, mean, nan
+from pandas import DataFrame, NaT
 from sqlalchemy import func, select
 
 from freqtrade import __version__
@@ -176,7 +177,6 @@ class RPC:
                 timeframe_to_minutes(config["timeframe"]) if "timeframe" in config else 0
             ),
             "exchange": config["exchange"]["name"],
-            "demo_trading": config["exchange"].get("demo_trading", False),
             "strategy": config["strategy"],
             "force_entry_enable": config.get("force_entry_enable", False),
             "exit_pricing": config.get("exit_pricing", {}),
@@ -190,10 +190,6 @@ class RPC:
                 else -1
             ),
         }
-        if config.get("trading_mode", "spot") == TradingMode.FUTURES and (
-            proxy_coin := config.get("proxy_coin")
-        ):
-            val["proxy_coin"] = proxy_coin
         return val
 
     def _rpc_trade_status(self, trade_ids: list[int] | None = None) -> list[dict[str, Any]]:
@@ -280,24 +276,24 @@ class RPC:
 
                 trade_dict = trade.to_json()
                 trade_dict.update(
-                    {
-                        "close_profit": trade.close_profit if not trade.is_open else None,
-                        "current_rate": current_rate,
-                        "profit_ratio": current_profit,
-                        "profit_pct": round(current_profit * 100, 2),
-                        "profit_abs": current_profit_abs,
-                        "profit_fiat": current_profit_fiat,
-                        "total_profit_abs": total_profit_abs,
-                        "total_profit_fiat": total_profit_fiat,
-                        "total_profit_ratio": total_profit_ratio,
-                        "stoploss_current_dist": stoploss_current_dist,
-                        "stoploss_current_dist_ratio": round(stoploss_current_dist_ratio, 8),
-                        "stoploss_current_dist_pct": round(stoploss_current_dist_ratio * 100, 2),
-                        "stoploss_entry_dist": stoploss_entry_dist,
-                        "stoploss_entry_dist_ratio": round(stoploss_entry_dist_ratio, 8),
-                        "open_orders": oo_details,
-                        "nr_of_successful_entries": trade.nr_of_successful_entries,
-                    }
+                    dict(
+                        close_profit=trade.close_profit if not trade.is_open else None,
+                        current_rate=current_rate,
+                        profit_ratio=current_profit,
+                        profit_pct=round(current_profit * 100, 2),
+                        profit_abs=current_profit_abs,
+                        profit_fiat=current_profit_fiat,
+                        total_profit_abs=total_profit_abs,
+                        total_profit_fiat=total_profit_fiat,
+                        total_profit_ratio=total_profit_ratio,
+                        stoploss_current_dist=stoploss_current_dist,
+                        stoploss_current_dist_ratio=round(stoploss_current_dist_ratio, 8),
+                        stoploss_current_dist_pct=round(stoploss_current_dist_ratio * 100, 2),
+                        stoploss_entry_dist=stoploss_entry_dist,
+                        stoploss_entry_dist_ratio=round(stoploss_entry_dist_ratio, 8),
+                        open_orders=oo_details,
+                        nr_of_successful_entries=trade.nr_of_successful_entries,
+                    )
                 )
                 results.append(trade_dict)
             return results
@@ -409,7 +405,7 @@ class RPC:
         profit_units: dict[date, dict] = {}
         daily_stake = self._freqtrade.wallets.get_total_stake_amount()
 
-        for day in range(timescale):
+        for day in range(0, timescale):
             profitday = start_date - time_offset(day)
             # Only query for necessary columns for performance reasons.
             trades = Trade.session.execute(
@@ -595,7 +591,7 @@ class RPC:
         """
         Returns cumulative profit statistics, with optional direction filter (long/short)
         """
-        start_date = dt_from_ts(0) if start_date is None else start_date
+        start_date = datetime.fromtimestamp(0) if start_date is None else start_date
 
         trade_filter = (
             Trade.is_open.is_(False) & (Trade.close_date >= start_date)
@@ -790,26 +786,6 @@ class RPC:
             "bot_start_date": format_date(bot_start),
         }
 
-    def _rpc_get_historic_balance(self) -> tuple[DataFrame, int]:
-        """
-        Returns the historic balance of the bot
-        :return: DataFrame with the balance history and the timestamp of the migration
-        """
-        results = read_sql("wallet_history", con=Trade.session.bind, parse_dates=["timestamp"])
-
-        results = results.rename({"timestamp": "date"}, axis=1)
-        results.loc[:, "__date_ts"] = results.loc[:, "date"].dt.as_unit("ms").astype("int64")
-        # Exclude non-bot managed for now
-        results_filtered = results.loc[results["bot_managed"].astype(bool)]
-
-        results_final = (
-            results_filtered.groupby(["date", "__date_ts"])
-            .agg({"total_quote": "sum"})
-            .reset_index()
-        )
-        hist = KeyValueStore.get_datetime_value("wallet_history_migration_date")
-        return results_final, dt_ts_def(hist, 0)
-
     def __balance_get_est_stake(
         self, coin: str, stake_currency: str, amount: float, balance: Wallet
     ) -> tuple[float, float]:
@@ -834,6 +810,7 @@ class RPC:
                 return est_stake, est_bot_stake
             except (ExchangeError, PricingError) as e:
                 logger.warning(f"Error {e} getting rate for {coin}")
+                pass
         return est_stake, est_bot_stake
 
     def _rpc_balance(self, stake_currency: str, fiat_display_currency: str) -> dict:
@@ -899,7 +876,7 @@ class RPC:
         for symbol, pos in self._freqtrade.wallets.get_all_positions().items():
             est_stake = pos.collateral
             pos_base = self._freqtrade.exchange.get_pair_base_currency(symbol)
-            if pos.leverage and pos.position:
+            if pos.leverage:
                 try:
                     rate = self._freqtrade.exchange.get_conversion_rate(pos_base, stake_currency)
                     if rate:
@@ -917,6 +894,7 @@ class RPC:
                             est_stake = pos.collateral * (1 + pos.leverage) - rate * pos.position
                 except (ExchangeError, PricingError) as e:
                     logger.warning(f"Error {e} getting rate for futures {symbol} / {pos_base}")
+                    pass
 
             # Add the estimated stake (collateral + unlevered PnL) to totals
             total += est_stake
@@ -1409,7 +1387,7 @@ class RPC:
         }
 
     def _rpc_locks(self) -> dict[str, Any]:
-        """Returns the current locks"""
+        """Returns the  current locks"""
 
         locks = PairLocks.get_pair_locks(None)
         return {"lock_count": len(locks), "locks": [lock.to_json() for lock in locks]}
@@ -1496,7 +1474,7 @@ class RPC:
             buffer = bufferHandler.buffer
         records = [
             [
-                format_date(dt_from_ts(r.created)),
+                format_date(datetime.fromtimestamp(r.created)),
                 r.created * 1000,
                 r.name,
                 r.levelname,
@@ -1538,11 +1516,16 @@ class RPC:
                 df_cols = [col for col in dataframe_columns if col in cols_set]
                 dataframe = dataframe.loc[:, df_cols]
 
-            dataframe.loc[:, "__date_ts"] = (
-                dataframe.loc[:, "date"].dt.as_unit("ms").astype("int64")
-            )
+            if isinstance(dataframe.dtypes["date"], pd.DatetimeTZDtype):
+                dataframe.loc[:, "__date_ts"] = (
+                    dataframe.loc[:, "date"].astype("datetime64[ms, UTC]").astype(int64)
+                )
+            else:
+                dataframe.loc[:, "__date_ts"] = (
+                    dataframe.loc[:, "date"].astype("datetime64[ms]").astype(int64)
+                )
             # Move signal close to separate column when signal for easy plotting
-            for sig_type in signals:
+            for sig_type in signals.keys():
                 if sig_type in dataframe.columns:
                     mask = dataframe[sig_type] == 1
                     signals[sig_type] = int(mask.sum())
@@ -1550,7 +1533,8 @@ class RPC:
 
             # band-aid until this is fixed:
             # https://github.com/pandas-dev/pandas/issues/45836
-            date_columns = dataframe.select_dtypes(include=["datetime", "datetime64", "datetimetz"])
+            datetime_types = ["datetime", "datetime64", "datetime64[ns, UTC]"]
+            date_columns = dataframe.select_dtypes(include=datetime_types)
             for date_column in date_columns:
                 # replace NaT with `None`
                 dataframe[date_column] = dataframe[date_column].astype(object).replace({NaT: None})
@@ -1696,11 +1680,8 @@ class RPC:
                     else dt_ts(dt_now() - timedelta(days=30)),
                     is_new_pair=True,  # history is never available - so always treat as new pair
                     candle_type=config.get("candle_type_def", CandleType.SPOT),
-                    until_ms=timerange_parsed.stopts * 1000 if timerange_parsed.stopts else None,
+                    until_ms=timerange_parsed.stopts,
                 )
-                if timerange_parsed.stopts and len(data) > 1:
-                    # trim last candle if it is newer than the stop time
-                    data = data.loc[data["date"] <= timerange_parsed.stopdt]
             else:
                 _data = load_data(
                     datadir=config["datadir"],
@@ -1723,15 +1704,9 @@ class RPC:
                 strategy.ft_bot_start()
 
                 df_analyzed = strategy.analyze_ticker(data, {"pair": pair})
-                prev_len = len(df_analyzed)
                 df_analyzed = trim_dataframe(
                     df_analyzed, timerange_parsed, startup_candles=startup_candles
                 )
-                if prev_len > 0 and len(df_analyzed) == 0:
-                    raise RPCException(
-                        f"After trimming by startup_candle_count, no data for "
-                        f"{pair}, {timeframe} in {config.get('timerange')} left."
-                    )
                 annotations = strategy.ft_plot_annotations(pair=pair, dataframe=df_analyzed)
 
             else:
@@ -1769,30 +1744,32 @@ class RPC:
 
     @staticmethod
     def _rpc_sysinfo() -> dict[str, Any]:
-        cpu_pct = psutil.cpu_percent(interval=0.1, percpu=True)
-        load_avg = psutil.getloadavg()
+        try:
+            from pathlib import Path
+            with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
+                temp = float(f.read()) / 1000.0
+        except Exception:
+            temp = 0.0
+
+        try:
+            disk_io = psutil.disk_io_counters()
+            disk_read = disk_io.read_bytes
+            disk_write = disk_io.write_bytes
+        except Exception:
+            disk_read = 0
+            disk_write = 0
+
         return {
-            "cpu_pct": cpu_pct,  # Deprecated, use cpu_load instead
-            "cpu_load": [
-                {
-                    "cpu": idx,
-                    "pct": pct,
-                }
-                for idx, pct in enumerate(cpu_pct)
-            ],
-            "cpu_avg": sum(cpu_pct) / len(cpu_pct) if cpu_pct else 0.0,
-            "cpu_load_avg": {
-                "1m": load_avg[0],
-                "5m": load_avg[1],
-                "15m": load_avg[2],
-            },
-            "cpu_count": len(cpu_pct),
+            "cpu_pct": psutil.cpu_percent(interval=1, percpu=True),
             "ram_pct": psutil.virtual_memory().percent,
+            "cpu_temp": temp,
+            "disk_read_bytes": disk_read,
+            "disk_write_bytes": disk_write,
         }
 
     def health(self) -> dict[str, str | int | None]:
         last_p = self._freqtrade.last_process
-        res: dict[str, str | int | None] = {
+        res: dict[str, None | str | int] = {
             "last_process": None,
             "last_process_loc": None,
             "last_process_ts": None,

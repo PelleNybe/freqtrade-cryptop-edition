@@ -25,7 +25,7 @@ A exchange configuration for "binance" would look as follows:
 ```json
 "exchange": {
     "name": "binance",
-    "api_key": "your_exchange_api_key",
+    "key": "your_exchange_key",
     "secret": "your_exchange_secret",
     "ccxt_config": {},
     "ccxt_async_config": {},
@@ -40,7 +40,7 @@ In case of problems related to rate-limits (usually DDOS Exceptions in your logs
 ```json
 "exchange": {
     "name": "kraken",
-    "api_key": "your_exchange_api_key",
+    "key": "your_exchange_key",
     "secret": "your_exchange_secret",
     "ccxt_config": {"enableRateLimit": true},
     "ccxt_async_config": {
@@ -95,7 +95,7 @@ They can however also be configured via configuration file. Since json doesn't s
 
 ``` json
 // ...
- "api_key": "<someapikey>",
+ "key": "<someapikey>",
  "secret": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBABACAFQA<...>s8KX8=\n-----END PRIVATE KEY-----"
 // ...
 ```
@@ -217,32 +217,6 @@ freqtrade download-data --exchange kraken --dl-trades -p BTC/EUR BCH/EUR
     Please pay attention that rateLimit configuration entry holds delay in milliseconds between requests, NOT requests/sec rate.
     So, in order to mitigate Kraken API "Rate limit exceeded" exception, this configuration should be increased, NOT decreased.
 
-## Kraken Futures
-
-Kraken Futures uses the exchange id `krakenfutures` and supports isolated futures mode.
-
-```jsonc
-"exchange": {
-    "name": "krakenfutures",
-    "api_key": "your_exchange_api_key",
-    "secret": "your_exchange_secret"
-},
-"trading_mode": "futures",
-"margin_mode": "isolated",
-"stake_currency": "USD"
-```
-
-!!! Tip "Stoploss on Exchange"
-    Kraken Futures supports `stoploss_on_exchange` with both `limit` and `market` stop orders.
-    Use `order_types.stoploss_price_type` to select the trigger price source (`mark`, `last`, or `index`).
-
-!!! Note "Collateral"
-    Kraken Futures is USD-settled. Use USD as your stake currency.
-
-!!! Note "Flex (Multi-collateral) Accounts"
-    Kraken Futures flex accounts allow collateral in multiple currencies, while trading remains USD-settled.
-    Freqtrade derives the `USD` balance from Kraken margin fields, so keep `stake_currency` set to `USD`.
-
 ## Kucoin
 
 Kucoin requires a passphrase for each api key, you will therefore need to add this key into the configuration so your exchange section looks as follows:
@@ -250,7 +224,7 @@ Kucoin requires a passphrase for each api key, you will therefore need to add th
 ```json
 "exchange": {
     "name": "kucoin",
-    "api_key": "your_exchange_api_key",
+    "key": "your_exchange_key",
     "secret": "your_exchange_secret",
     "password": "your_exchange_api_key_password",
     // ...
@@ -275,15 +249,12 @@ Kucoin accounts may use `KCS` for fees, and if a trade happens to be on `KCS`, f
 
 ## OKX
 
-!!! Tip "Stoploss on Exchange"
-    OKX supports `stoploss_on_exchange` with both stop-limit and stop-market orders on spot and futures markets. You can use either `"limit"` or `"market"` in the `order_types.stoploss` configuration setting to select the stoploss order type.
-
 OKX requires a passphrase for each api key, you will therefore need to add this key into the configuration so your exchange section looks as follows:
 
 ```json
 "exchange": {
     "name": "okx",
-    "api_key": "your_exchange_api_key",
+    "key": "your_exchange_key",
     "secret": "your_exchange_secret",
     "password": "your_exchange_api_key_password",
     // ...
@@ -348,14 +319,23 @@ API Keys for live futures trading must have the following permissions:
 
 We do strongly recommend to limit all API keys to the IP you're going to use it from.
 
-### Bybit Demo Mode
+## Bitmart
 
-Bybit has a [demo mode](https://learn.bybit.com/en/bybit-guide/how-to-use-bybit-demo-trading) - which can be activated by setting `exchange.demo_trading` to `true` in the configuration.
-Bybit uses live markets to simulate your trades (without market impact) - making it work very similar to freqtrade's dry-run mode.  
+Bitmart requires the API key Memo (the name you give the API key) to go along with the exchange key and secret.
+It's therefore required to pass the UID as well.
 
-You'll need to use separate API keys for demo trading, which you can create on bybit's demo page.
+```json
+"exchange": {
+    "name": "bitmart",
+    "uid": "your_bitmart_api_key_memo",
+    "secret": "your_exchange_secret",
+    "password": "your_exchange_api_key_password",
+    // ...
+}
+```
 
-Demo mode is incompatible with dry-run.
+!!! Warning "Necessary Verification"
+    Bitmart requires Verification Lvl2 to successfully trade on the spot market through the API - even though trading via UI works just fine with just Lvl1 verification.
 
 ## Bitget
 
@@ -364,7 +344,7 @@ Bitget requires a passphrase for each api key, you will therefore need to add th
 ```json
 "exchange": {
     "name": "bitget",
-    "api_key": "your_exchange_api_key",
+    "key": "your_exchange_key",
     "secret": "your_exchange_secret",
     "password": "your_exchange_api_key_password",
     // ...
@@ -387,11 +367,6 @@ On startup, freqtrade will set the position mode to "One-way Mode" for the whole
 
 !!! Tip "Stoploss on Exchange"
     Hyperliquid supports `stoploss_on_exchange` and uses `stop-loss-limit` orders. It provides great advantages, so we recommend to benefit from it.
-
-!!! Warning "Unified accounts"
-    Hyperliquid unified accounts are supported - though this relies freqtrade's assumption of "owning" the account, and being the only one trading on it (in this case, extended to both spot and futures).
-    We hence recommend the usage of subaccounts where possible, and to avoid manual trading on the same account while the bot is running.
-    Freqtrade will attempt to detect the account type on startup - changing the account type mid-trading is not supported and may lead to exceptions and errors.
 
 Hyperliquid is a Decentralized Exchange (DEX). Decentralized exchanges work a bit different compared to normal exchanges. Instead of authenticating private API calls using an API key, private API calls need to be signed with the private key of your wallet (We recommend using an api Wallet for this, generated either on Hyperliquid or in your wallet of choice).
 This needs to be configured like this:
@@ -423,50 +398,30 @@ Hyperliquid handles deposits and withdrawals on the Arbitrum One chain, a Layer 
     * Create a different software wallet, only transfer the funds you want to trade with to that wallet, and use that wallet to trade on Hyperliquid.
     * If you have funds you don't want to use for trading (after making a profit for example), transfer them back to your hardware wallet.
 
+### Hyperliquid Vault / Subaccount
 
-!!! Warning "Vaults and Subaccounts"
+Hyperliquid allows you to create either a vault or a subaccount.
+To use these with Freqtrade, you will need to use the following configuration pattern:
+
+``` json
+"exchange": {
+    "name": "hyperliquid",
+    "walletAddress": "your_master_wallet_address", // Your master wallet address (not the API wallet address and not the vault/subaccount address).
+    "privateKey": "your_api_private_key", // API wallet private key (see https://app.hyperliquid.xyz/API). You'll only need the private key.
+    "ccxt_config": {
+        "options": {
+            "vaultAddress": "your_vault_address", // Optional, only if you want to use a vault ...
+            "subAccountAddress": "your_subaccount_address" // OR optional, only if you want to use a subaccount
+        }
+    },
+    // ...
+}
+```
+
+Your balance and trades will now be used from your vault / subaccount - and no longer from your main account.
+
+!!! Note
     You can only use either a vault or a subaccount - not both at the same time.
-
-### Hyperliquid Subaccount
-
-Hyperliquid allows you to create subaccounts with sufficient previous trading volume.  
-To use subaccounts with Freqtrade, you will need to use the following configuration pattern:
-
-``` json
-"exchange": {
-    "name": "hyperliquid",
-    "walletAddress": "your_master_wallet_address", // Your master wallet address (not the API wallet or vault address - but not subaccount address).
-    "privateKey": "your_api_private_key", // API wallet private key (see https://app.hyperliquid.xyz/API). You'll only need the private key.
-    "ccxt_config": {
-        "options": {
-            "subAccountAddress": "your_subaccount_address" // Required if you want to use a subaccount.
-        }
-    },
-    // ...
-}
-```
-
-Your balance and trades will now be used from your subaccount - and no longer from your main account.
-
-### Hyperliquid Vault
-
-Hyperliquid allows you to create vaults. To use vaults with Freqtrade, you will need to use the following configuration pattern:
-
-``` json
-"exchange": {
-    "name": "hyperliquid",
-    "walletAddress": "your_vault_address", // Your vault wallet address (Must also be added below in the ccxt_config.options.vaultAddress field)
-    "privateKey": "your_api_private_key", // API wallet private key (see https://app.hyperliquid.xyz/API). You'll only need the private key.
-    "ccxt_config": {
-        "options": {
-            "vaultAddress": "your_vault_address", // Optional, only if you want to use a vault ... (vault address must also be added to walletAdress)
-        }
-    },
-    // ...
-}
-```
-
-Your balance and trades will now be used from your vault - and no longer from your main account.
 
 ### Historic Hyperliquid data
 
@@ -511,7 +466,7 @@ If your account is required to use an operatorId, you can set it in the configur
 ``` json
 "exchange": {
         "name": "bitvavo",
-        "api_key": "",
+        "key": "",
         "secret": "",
         "ccxt_config": {
             "options": {

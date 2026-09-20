@@ -20,8 +20,9 @@ _SENSITIVE_KEYS = [
     "telegram.chat_id",
     "discord.webhook_url",
     "api_server.password",
+    "api_server.jwt_secret_key",
+    "api_server.ws_token",
     "webhook.url",
-    "coingecko.api_key",
 ]
 
 
@@ -41,8 +42,11 @@ def sanitize_config(config: Config, *, show_sensitive: bool = False) -> Config:
             nested_config = config
             for nested_key in nested_keys[:-1]:
                 nested_config = nested_config.get(nested_key, {})
-            if nested_keys[-1] in nested_config:
-                nested_config[nested_keys[-1]] = "REDACTED"
+                if not isinstance(nested_config, dict):
+                    break
+            else:
+                if nested_keys[-1] in nested_config:
+                    nested_config[nested_keys[-1]] = "REDACTED"
         else:
             if key in config:
                 config[key] = "REDACTED"
@@ -65,4 +69,4 @@ def remove_exchange_credentials(exchange_config: ExchangeConfig, dry_run: bool) 
         if "." in key:
             key1 = key.removeprefix("exchange.")
             if key1 in exchange_config:
-                exchange_config[key1] = None
+                exchange_config[key1] = ""

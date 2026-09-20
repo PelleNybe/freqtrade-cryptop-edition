@@ -173,7 +173,7 @@ class BaseEnvironment(gym.Env):
     def tensorboard_log(
         self,
         metric: str,
-        value: float | None = None,
+        value: int | float | None = None,
         inc: bool | None = None,
         category: str = "custom",
     ):
@@ -196,7 +196,7 @@ class BaseEnvironment(gym.Env):
         :param inc: (deprecated) sets whether the `value` is incremented or not
         :param category: `metric` category
         """
-        increment = value is None
+        increment = True if value is None else False
         value = 1 if increment else value
 
         if category not in self.tensorboard_metrics:
@@ -327,7 +327,7 @@ class BaseEnvironment(gym.Env):
 
     def _update_history(self, info):
         if not self.history:
-            self.history = {key: [] for key in info}
+            self.history = {key: [] for key in info.keys()}
 
         for key, value in info.items():
             self.history[key].append(value)

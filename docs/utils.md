@@ -70,7 +70,7 @@ Your combined configuration is:
   "stake_currency": "USDT",
   "exchange": {
     "name": "binance",
-    "api_key": "REDACTED",
+    "key": "REDACTED",
     "secret": "REDACTED",
     "ccxt_config": {},
     "ccxt_async_config": {},
@@ -171,6 +171,7 @@ Exchanges available for Freqtrade:
 Exchange name       Supported    Markets                 Reason
 ------------------  -----------  ----------------------  ------------------------------------------------------------------------
 binance             Official     spot, isolated futures
+bitmart             Official     spot
 bybit                            spot, isolated futures
 gate                Official     spot, isolated futures
 htx                 Official     spot
@@ -194,6 +195,7 @@ Exchange name       Valid    Supported    Markets                 Reason
 ------------------  -------  -----------  ----------------------  ---------------------------------------------------------------------------------
 binance             True     Official     spot, isolated futures
 bitflyer            False                 spot                    missing: fetchOrder. missing opt: fetchTickers.
+bitmart             True     Official     spot
 bybit               True                  spot, isolated futures
 gate                True     Official     spot, isolated futures
 htx                 True     Official     spot
@@ -414,6 +416,6 @@ Your original strategy will remain available in the `user_data/strategies_orig_u
 
 !!! Warning "Conversion results"
     Strategy updater will work on a "best effort" approach. Please do your due diligence and verify the results of the conversion.
-    We also recommend to run a python formatter (e.g. `ruff format`) to format results in a sane manner.
+    We also recommend to run a python formatter (e.g. `black`) to format results in a sane manner.
 
 --8<-- "commands/strategy-updater.md"

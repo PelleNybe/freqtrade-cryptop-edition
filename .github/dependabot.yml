@@ -1,10 +1,8 @@
 version: 2
 updates:
-- package-ecosystem: docker  # zizmor: ignore[dependabot-cooldown] Docker does not support cooldowns at the moment.
-  # Docker does not support cooldowns at the moment.
-  # https://github.com/dependabot/dependabot-core/issues/14044
-  # cooldown:
-  #   default-days: 7
+- package-ecosystem: docker
+  cooldown:
+    default-days: 7
   directories:
     - "/"
     - "/docker"
@@ -31,8 +29,8 @@ updates:
       - ccxt
   schedule:
     interval: "cron"
-    # Monday at 01:25
-    cronjob: "25 1 * * 1"
+    # Monday at 03:00
+    cronjob: "0 3 * * 1"
   open-pull-requests-limit: 15
   target-branch: develop
   groups:
@@ -49,11 +47,7 @@ updates:
       patterns:
         - "scipy"
         - "scipy-stubs"
-    gymnasium:
-      patterns:
-        - "gymnasium"
-        - "stable-baselines3"
-        - "sb3-contrib"
+
 - package-ecosystem: "github-actions"
   directory: "/"
   cooldown:
@@ -67,7 +61,5 @@ updates:
   groups:
     actions:
       patterns:
+        # Combine updates for github provided actions
         - "actions/*"
-    docker:
-      patterns:
-        - "docker/*"

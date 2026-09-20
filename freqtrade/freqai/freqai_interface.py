@@ -95,6 +95,9 @@ class IFreqaiModel(ABC):
         self.inference_time: float = 0
         self.train_time: float = 0
         self.begin_time: float = 0
+
+        # Predictive Thermal-Throttling state
+        self._thermal_history = deque(maxlen=30)  # Stores (timestamp, temp)
         self.begin_time_train: float = 0
         self.base_tf_seconds = timeframe_to_seconds(self.config["timeframe"])
         self.continual_learning = self.freqai_info.get("continual_learning", False)
@@ -186,6 +189,7 @@ class IFreqaiModel(ABC):
         when SIGINT is sent.
         """
         self.dd.save_historic_predictions_to_disk()
+        return
 
     def shutdown(self):
         """
@@ -217,6 +221,57 @@ class IFreqaiModel(ABC):
         self._threads.append(_thread)
         _thread.start()
 
+    def _check_thermal_throttle(self):
+        """
+        Proactive Predictive Thermal-Throttling (AI-Driven).
+        Forecasts thermal spikes before they hit the hardware limit using recent history.
+        """
+        try:
+            import time
+            from pathlib import Path
+
+            import numpy as np
+
+            with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
+                current_temp = float(f.read()) / 1000.0
+                current_time = time.time()
+
+                self._thermal_history.append((current_time, current_temp))
+
+                # Reactive hard-throttle if already over 75C
+                if current_temp > 75.0:
+                    logger.warning(
+                        f"[THERMAL THROTTLE] CPU at {current_temp:.1f}C. Pausing FreqAI for 15s."
+                    )
+                    time.sleep(15)
+                    self._thermal_history.clear()
+                    return
+
+                # Predictive soft-throttle
+                if len(self._thermal_history) > 5:
+                    # Forecast horizon: 5 minutes (300 seconds)
+                    times = np.array([t for t, _ in self._thermal_history])
+                    temps = np.array([temp for _, temp in self._thermal_history])
+
+                    # Normalize times for numerical stability
+                    times_norm = times - times[0]
+
+                    # Fit a 1st degree polynomial (linear regression)
+                    if len(times_norm) > 1 and times_norm[-1] > 0:
+                        slope, intercept = np.polyfit(times_norm, temps, 1)
+                        predicted_temp = intercept + slope * (times_norm[-1] + 300)  # + 5 min
+
+                        if predicted_temp > 75.0 and slope > 0.05:  # Rising at least 0.05C/sec
+                            logger.warning(
+                                f"[PREDICTIVE THROTTLE] CPU at {current_temp:.1f}C, but predicted "
+                                f"to hit "
+                                f"{predicted_temp:.1f}C in 5 min. Yielding execution for 10s."
+                            )
+                            time.sleep(10)
+                            self._thermal_history.clear()
+        except Exception as e:
+            logger.debug(f"Predictive thermal check failed: {e}")
+
     def _start_scanning(self, strategy: IStrategy) -> None:
         """
         Function designed to constantly scan pairs for retraining on a separate thread (intracandle)
@@ -226,6 +281,9 @@ class IFreqaiModel(ABC):
         """
         while not self._stop_event.is_set():
             time.sleep(1)
+
+            # EDGE OPTIMIZATION: Thermal throttling check
+            self._check_thermal_throttle()
 
             if not self.train_queue:
                 continue
@@ -279,7 +337,7 @@ class IFreqaiModel(ABC):
         following the training window). FreqAI slides the window and sequentially builds
         the backtesting results before returning the concatenated results for the full
         backtesting period back to the strategy.
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
         :param strategy: Strategy to train on
@@ -380,12 +438,6 @@ class IFreqaiModel(ABC):
                         )
                         self.model = None
 
-                    if self.model is None:
-                        # Persist metadata (feature list) to enable freqUI after backtest
-                        self.dd.save_metadata(dk)
-                        self._append_null_backtesting_predictions(dk, dataframe_backtest)
-                        continue
-
                     self.dd.pair_dict[pair]["trained_timestamp"] = int(tr_train.stopts)
                     if self.plot_features and self.model is not None:
                         plot_feature_importance(self.model, pair, dk, self.plot_features)
@@ -408,34 +460,13 @@ class IFreqaiModel(ABC):
 
         return dk
 
-    def _append_null_backtesting_predictions(
-        self, dk: FreqaiDataKitchen, dataframe_backtest: DataFrame
-    ) -> None:
-        """
-        Append neutral predictions for a backtest window whose model training failed.
-        """
-        labels = dk.label_list + dk.unique_class_list
-        predictions = DataFrame(0, index=range(len(dataframe_backtest)), columns=labels)
-        do_preds = np.zeros(len(dataframe_backtest), dtype=np.int_)
-        dk.DI_values = np.zeros(len(dataframe_backtest))
-
-        labels_mean = dk.data.setdefault("labels_mean", {})
-        labels_std = dk.data.setdefault("labels_std", {})
-        for label in labels:
-            labels_mean[label] = 0
-            labels_std[label] = 0
-
-        append_df = dk.get_predictions_to_append(predictions, do_preds, dataframe_backtest)
-        dk.append_predictions(append_df)
-        dk.save_backtesting_prediction(append_df)
-
     def start_live(
         self, dataframe: DataFrame, metadata: dict, strategy: IStrategy, dk: FreqaiDataKitchen
     ) -> FreqaiDataKitchen:
         """
         The main broad execution for dry/live. This function will check if a retraining should be
         performed, and if so, retrain and reset the model.
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param strategy: IStrategy = currently employed strategy
         dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
@@ -537,7 +568,7 @@ class IFreqaiModel(ABC):
 
     def check_if_feature_list_matches_strategy(self, dk: FreqaiDataKitchen) -> None:
         """
-        Ensure user is passing the proper feature set if they are reusing an `identifier` pointing
+        Ensure user is ing the proper feature set if they are reusing an `identifier` pointing
         to a folder holding existing models.
         :param dataframe: DataFrame = strategy provided dataframe
         :param dk: FreqaiDataKitchen = non-persistent data container/analyzer for
@@ -697,30 +728,28 @@ class IFreqaiModel(ABC):
         """
 
         self.dd.historic_predictions[pair] = pred_df
+        hist_preds_df = self.dd.historic_predictions[pair]
 
         self.set_start_dry_live_date(strat_df)
 
-        for label in pred_df.columns:
-            if pd.api.types.is_string_dtype(pred_df[label].dtype):
+        for label in hist_preds_df.columns:
+            if hist_preds_df[label].dtype == object:
                 continue
-            pred_df[f"{label}_mean"] = 0
-            pred_df[f"{label}_std"] = 0
+            hist_preds_df[f"{label}_mean"] = 0
+            hist_preds_df[f"{label}_std"] = 0
 
-        pred_df["do_predict"] = 0
+        hist_preds_df["do_predict"] = 0
 
         if self.freqai_info["feature_parameters"].get("DI_threshold", 0) > 0:
-            pred_df["DI_values"] = 0
+            hist_preds_df["DI_values"] = 0
 
         for return_str in dk.data["extra_returns_per_train"]:
-            pred_df[return_str] = dk.data["extra_returns_per_train"][return_str]
+            hist_preds_df[return_str] = dk.data["extra_returns_per_train"][return_str]
 
-        # pred_df is always 0-indexed and corresponds row-for-row (positionally) to strat_df.
-        # Reset strat_df's index to match, to protect from strategies dropping rows.
-        strat_df_fixed = strat_df.reset_index(drop=True)
-        pred_df["high_price"] = strat_df_fixed["high"]
-        pred_df["low_price"] = strat_df_fixed["low"]
-        pred_df["close_price"] = strat_df_fixed["close"]
-        pred_df["date_pred"] = strat_df_fixed["date"]
+        hist_preds_df["high_price"] = strat_df["high"]
+        hist_preds_df["low_price"] = strat_df["low"]
+        hist_preds_df["close_price"] = strat_df["close"]
+        hist_preds_df["date_pred"] = strat_df["date"]
 
     def fit_live_predictions(self, dk: FreqaiDataKitchen, pair: str) -> None:
         """
@@ -734,16 +763,18 @@ class IFreqaiModel(ABC):
         num_candles = self.freqai_info.get("fit_live_predictions_candles", 100)
         dk.data["labels_mean"], dk.data["labels_std"] = {}, {}
         for label in full_labels:
-            if pd.api.types.is_string_dtype(self.dd.historic_predictions[dk.pair][label].dtype):
+            if self.dd.historic_predictions[dk.pair][label].dtype == object:
                 continue
             f = spy.stats.norm.fit(self.dd.historic_predictions[dk.pair][label].tail(num_candles))
             dk.data["labels_mean"][label], dk.data["labels_std"][label] = f[0], f[1]
 
+        return
+
     def inference_timer(self, do: Literal["start", "stop"] = "start", pair: str = ""):
         """
-        Timer designed to track the cumulative time spent in FreqAI for one pass through
-        the whitelist. Warnings about degraded Performance will be tracked by
-        freqtradebot independent of freqAI.
+        Timer designed to track the cumulative time spent in FreqAI for one  through
+        the whitelist. This will check if the time spent is more than 1/4 the time
+        of a single candle, and if so, it will warn the user of degraded performance
         """
         if do == "start":
             self.pair_it += 1
@@ -760,6 +791,7 @@ class IFreqaiModel(ABC):
                 )
                 self.pair_it = 0
                 self.inference_time = 0
+        return
 
     def train_timer(self, do: Literal["start", "stop"] = "start", pair: str = ""):
         """
@@ -780,6 +812,7 @@ class IFreqaiModel(ABC):
                 logger.info(f"Total time spent training pairlist {self.train_time:.2f} seconds")
                 self.pair_it_train = 0
                 self.train_time = 0
+        return
 
     def get_init_model(self, pair: str) -> Any:
         if pair not in self.dd.model_dictionary or not self.continual_learning:
@@ -920,7 +953,7 @@ class IFreqaiModel(ABC):
                     ]
                     self.fit_live_predictions(self.dk, self.dk.pair)
                     for label in label_columns:
-                        if pd.api.types.is_string_dtype(dk.full_df[label].dtype):
+                        if dk.full_df[label].dtype == object:
                             continue
                         if "labels_mean" in self.dk.data:
                             dk.full_df.at[index, f"{label}_mean"] = self.dk.data["labels_mean"][
@@ -933,6 +966,8 @@ class IFreqaiModel(ABC):
                         dk.full_df.at[index, f"{extra_col}"] = self.dk.data[
                             "extra_returns_per_train"
                         ][extra_col]
+
+        return
 
     def update_metadata(self, metadata: dict[str, Any]):
         """
@@ -955,7 +990,7 @@ class IFreqaiModel(ABC):
         self, dataframe: DataFrame, metadata: dict, dk: FreqaiDataKitchen
     ) -> FreqaiDataKitchen:
         """
-        :param dataframe: DataFrame = strategy passed dataframe
+        :param dataframe: DataFrame = strategy ed dataframe
         :param metadata: Dict = pair metadata
         :param dk: FreqaiDataKitchen = Data management/analysis tool associated to present pair only
         :return:
@@ -1042,6 +1077,7 @@ class IFreqaiModel(ABC):
 
         dd["train_labels"], _, _ = dk.label_pipeline.fit_transform(dd["train_labels"])
         dd["test_labels"], _, _ = dk.label_pipeline.transform(dd["test_labels"])
+        return
 
     def data_cleaning_predict(self, dk: FreqaiDataKitchen, pair: str):
         """
@@ -1062,3 +1098,4 @@ class IFreqaiModel(ABC):
         else:
             dk.DI_values = np.zeros(outliers.shape[0])
         dk.do_predict = outliers
+        return

@@ -26,9 +26,7 @@ options:
   -i, --timeframe TIMEFRAME
                         Specify timeframe (`1m`, `5m`, `30m`, `1h`, `1d`).
   --timerange TIMERANGE
-                        Limit action to a specific timerange. Format:
-                        (`yyyymmdd` or `yyyymmddThhmm` - e.g.
-                        `20240101-20240201T1200`).
+                        Specify what timerange of data to use.
   --data-format-ohlcv {json,jsongz,feather,parquet}
                         Storage format for downloaded candle (OHLCV) data.
                         (default: `feather`).
@@ -66,15 +64,18 @@ options:
   --strategy-list STRATEGY_LIST [STRATEGY_LIST ...]
                         Provide a space-separated list of strategies to
                         backtest. Please note that timeframe needs to be set
-                        either in config or via command line.
+                        either in config or via command line. When using this
+                        together with `--export trades`, the strategy-name is
+                        injected into the filename (so `backtest-data.json`
+                        becomes `backtest-data-SampleStrategy.json`
   --export {none,trades,signals}
                         Export backtest results (default: trades).
   --backtest-filename, --export-filename PATH
-                        DEPRECATED: This option is deprecated for backtesting
-                        and will be removed in a future release. Using a
-                        custom filename for backtest results is no longer
-                        supported. Use `--backtest-directory` to specify the
-                        directory.
+                        Use this filename for backtest results.Example:
+                        `--backtest-
+                        filename=backtest_results_2020-09-27_16-20-48.json`.
+                        Assumes either `user_data/backtest_results/` or
+                        `--export-directory` as base directory.
   --backtest-directory, --export-directory PATH
                         Directory to use for backtest results. Example:
                         `--export-directory=user_data/backtest_results/`.

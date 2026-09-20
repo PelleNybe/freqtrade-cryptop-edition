@@ -4,12 +4,13 @@ e.g BTC to USD
 """
 
 import logging
+from datetime import datetime
 
 from requests.exceptions import RequestException
 
 from freqtrade.constants import SUPPORTED_FIAT, Config
 from freqtrade.mixins.logging_mixin import LoggingMixin
-from freqtrade.util import FtTTLCache, dt_ts
+from freqtrade.util import FtTTLCache
 from freqtrade.util.coin_gecko import FtCoinGeckoApi
 from freqtrade.util.singleton import SingletonMeta
 
@@ -64,7 +65,7 @@ class CryptoToFiatConverter(LoggingMixin, metaclass=SingletonMeta):
                     "Too many requests for CoinGecko API, backing off and trying again later."
                 )
                 # Set backoff timestamp to 60 seconds in the future
-                self._backoff = dt_ts() + 60
+                self._backoff = datetime.now().timestamp() + 60
                 return
             # If the request is not a 429 error we want to raise the normal error
             logger.error(
@@ -78,7 +79,7 @@ class CryptoToFiatConverter(LoggingMixin, metaclass=SingletonMeta):
 
     def _get_gecko_id(self, crypto_symbol):
         if not self._coinlistings:
-            if self._backoff <= dt_ts():
+            if self._backoff <= datetime.now().timestamp():
                 self._load_cryptomap()
                 # Still not loaded.
                 if not self._coinlistings:
@@ -87,7 +88,7 @@ class CryptoToFiatConverter(LoggingMixin, metaclass=SingletonMeta):
                 return None
         found = [x for x in self._coinlistings if x["symbol"].lower() == crypto_symbol]
 
-        if crypto_symbol in coingecko_mapping:
+        if crypto_symbol in coingecko_mapping.keys():
             found = [x for x in self._coinlistings if x["id"] == coingecko_mapping[crypto_symbol]]
 
         if len(found) == 1:

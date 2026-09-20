@@ -1,8 +1,10 @@
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
-from fastapi import Depends, HTTPException
+from cachetools import TTLCache
+from fastapi import Depends, HTTPException, Request, status
 
 from freqtrade.constants import Config
 from freqtrade.enums import TRADE_MODES, RunMode
@@ -68,17 +70,34 @@ def get_message_stream():
 def is_webserver_mode(config=Depends(get_config)):
     if config["runmode"] != RunMode.WEBSERVER:
         raise HTTPException(status_code=503, detail="Bot is not in the correct state.")
+    return None
 
 
 def is_trading_mode(config=Depends(get_config)):
     if config["runmode"] not in TRADE_MODES:
         raise HTTPException(status_code=503, detail="Bot is not in the correct state.")
+    return None
 
 
-def verify_strategy(strategy: str | None):
-    """Verify that the strategy name is valid (not base64 encoded).
-    This is a security measure to prevent potential attacks using base64 encoded strategies.
-    This should be called for every endpoint that accepts a strategy name as a parameter.
-    """
-    if strategy is not None and ":" in strategy:
-        raise HTTPException(status_code=422, detail="base64 encoded strategies are not allowed.")
+class RateLimiter:
+    def __init__(self, max_calls: int, time_seconds: int):
+        self.cache: TTLCache = TTLCache(maxsize=1000, ttl=time_seconds)
+        self.max_calls = max_calls
+        self.ttl = time_seconds
+
+    async def __call__(self, request: Request):
+        client_ip = request.client.host if request.client else "unknown"
+        # Rate limit per IP and endpoint path
+        key = f"{client_ip}:{request.url.path}"
+        history = self.cache.get(key, [])
+        now = time.time()
+        # Filter out old timestamps
+        history = [t for t in history if t > now - self.ttl]
+
+        if len(history) >= self.max_calls:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded",
+            )
+        history.append(now)
+        self.cache[key] = history

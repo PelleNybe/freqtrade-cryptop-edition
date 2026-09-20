@@ -3,6 +3,7 @@ Minimum age (days listed) pair list filter
 """
 
 import logging
+from copy import deepcopy
 from datetime import timedelta
 
 from pandas import DataFrame
@@ -49,6 +50,15 @@ class AgeFilter(IPairList):
                 "exchange max request size "
                 f"({candle_limit})"
             )
+
+    @property
+    def needstickers(self) -> bool:
+        """
+        Boolean property defining if tickers are necessary.
+        If no Pairlist requires tickers, an empty Dict is passed
+        as tickers argument to filter_pairlist
+        """
+        return False
 
     def short_desc(self) -> str:
         """
@@ -105,8 +115,12 @@ class AgeFilter(IPairList):
         since_ms = dt_ts(dt_floor_day(dt_now()) + timedelta(days=since_days))
         candles = self._exchange.refresh_latest_ohlcv(needed_pairs, since_ms=since_ms, cache=False)
         if self._enabled:
-            for p in pairlist.copy():
-                daily_candles = candles.get((p, "1d", self._def_candletype), None)
+            for p in deepcopy(pairlist):
+                daily_candles = (
+                    candles[(p, "1d", self._def_candletype)]
+                    if (p, "1d", self._def_candletype) in candles
+                    else None
+                )
                 if not self._validate_pair_loc(p, daily_candles):
                     pairlist.remove(p)
         self.log_once(f"Validated {len(pairlist)} pairs.", logger.info)

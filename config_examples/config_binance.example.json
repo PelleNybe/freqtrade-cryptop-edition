@@ -31,7 +31,7 @@
     },
     "exchange": {
         "name": "binance",
-        "api_key": "your_exchange_api_key",
+        "key": "your_exchange_key",
         "secret": "your_exchange_secret",
         "ccxt_config": {},
         "ccxt_async_config": {

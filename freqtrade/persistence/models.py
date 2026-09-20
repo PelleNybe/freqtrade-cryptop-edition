@@ -1,14 +1,14 @@
 """
 This module contains the class to persist trades into SQLite
 """
-
 import functools
 import logging
 import threading
 from contextvars import ContextVar
 from typing import Any, Final
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -20,7 +20,6 @@ from freqtrade.persistence.key_value_store import _KeyValueStoreModel
 from freqtrade.persistence.migrations import check_migrate
 from freqtrade.persistence.pairlock import PairLock
 from freqtrade.persistence.trade_model import Order, Trade
-from freqtrade.persistence.wallet_history import WalletHistory
 
 
 logger = logging.getLogger(__name__)
@@ -75,6 +74,18 @@ def init_db(db_url: str) -> None:
 
     try:
         engine = create_engine(db_url, future=True, **kwargs)
+
+        # EDGE OPTIMIZATION: SQLite NVMe PRAGMA Tuning
+        if db_url.startswith("sqlite"):
+
+            @event.listens_for(Engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA temp_store=MEMORY")
+                cursor.close()
+
     except NoSuchModuleError:
         raise OperationalException(
             f"Given value for db_url: '{db_url}' is no valid database URL! (See {_SQL_DOCS_URL})"
@@ -86,13 +97,13 @@ def init_db(db_url: str) -> None:
     Trade.session = scoped_session(
         sessionmaker(bind=engine, autoflush=False), scopefunc=get_request_or_thread_id
     )
+    Trade.session._ft_batch_commit_active = False
     Order.session = Trade.session
     PairLock.session = Trade.session
     _KeyValueStoreModel.session = Trade.session
     _CustomData.session = scoped_session(
         sessionmaker(bind=engine, autoflush=True), scopefunc=get_request_or_thread_id
     )
-    WalletHistory.session = Trade.session
 
     previous_tables = inspect(engine).get_table_names()
     ModelBase.metadata.create_all(engine)

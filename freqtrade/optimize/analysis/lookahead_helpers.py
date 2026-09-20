@@ -10,12 +10,7 @@ from freqtrade.constants import Config
 from freqtrade.exceptions import OperationalException
 from freqtrade.optimize.analysis.lookahead import LookaheadAnalysis
 from freqtrade.resolvers import StrategyResolver
-from freqtrade.util import (
-    CustomProgress,
-    get_dry_run_wallet,
-    get_progress_tracker,
-    print_rich_table,
-)
+from freqtrade.util import get_dry_run_wallet, print_rich_table
 
 
 logger = logging.getLogger(__name__)
@@ -44,11 +39,9 @@ class LookaheadAnalysisSubFunctions:
                     [
                         inst.strategy_obj["location"].parts[-1],
                         inst.strategy_obj["name"],
-                        (
-                            "too few trades caught "
-                            f"({inst.current_analysis.total_signals}/{config['minimum_trade_amount']})."
-                            f"Test failed."
-                        ),
+                        "too few trades caught "
+                        f"({inst.current_analysis.total_signals}/{config['minimum_trade_amount']})."
+                        f"Test failed.",
                     ]
                 )
             elif inst.failed_bias_check:
@@ -133,14 +126,14 @@ class LookaheadAnalysisSubFunctions:
                 csv_df = add_or_update_row(csv_df, new_row_data)
 
         # Fill NaN values with a default value (e.g., 0)
-        csv_df["total_signals"] = csv_df["total_signals"].astype("int64").fillna(0)
-        csv_df["biased_entry_signals"] = csv_df["biased_entry_signals"].astype("int64").fillna(0)
-        csv_df["biased_exit_signals"] = csv_df["biased_exit_signals"].astype("int64").fillna(0)
+        csv_df["total_signals"] = csv_df["total_signals"].astype(int).fillna(0)
+        csv_df["biased_entry_signals"] = csv_df["biased_entry_signals"].astype(int).fillna(0)
+        csv_df["biased_exit_signals"] = csv_df["biased_exit_signals"].astype(int).fillna(0)
 
         # Convert columns to integers
-        csv_df["total_signals"] = csv_df["total_signals"].astype("int64")
-        csv_df["biased_entry_signals"] = csv_df["biased_entry_signals"].astype("int64")
-        csv_df["biased_exit_signals"] = csv_df["biased_exit_signals"].astype("int64")
+        csv_df["total_signals"] = csv_df["total_signals"].astype(int)
+        csv_df["biased_entry_signals"] = csv_df["biased_entry_signals"].astype(int)
+        csv_df["biased_exit_signals"] = csv_df["biased_exit_signals"].astype(int)
 
         logger.info(f"saving {config['lookahead_analysis_exportfilename']}")
         csv_df.to_csv(config["lookahead_analysis_exportfilename"], index=False)
@@ -162,10 +155,6 @@ class LookaheadAnalysisSubFunctions:
                 "stoploss": "market",
                 "stoploss_on_exchange": False,
             }
-            # Adjust Pricing to not fail when order types are forced to market orders
-            config["entry_pricing"] = {**config.get("entry_pricing", {}), "price_side": "other"}
-            config["exit_pricing"] = {**config.get("exit_pricing", {}), "price_side": "other"}
-
         else:
             logger.info("Using configured order_types, skipping order_types override.")
 
@@ -213,13 +202,11 @@ class LookaheadAnalysisSubFunctions:
         return config
 
     @staticmethod
-    def initialize_single_lookahead_analysis(
-        config: Config, strategy_obj: dict[str, Any], progress: CustomProgress
-    ):
+    def initialize_single_lookahead_analysis(config: Config, strategy_obj: dict[str, Any]):
         logger.info(f"Bias test of {Path(strategy_obj['location']).name} started.")
         start = time.perf_counter()
         current_instance = LookaheadAnalysis(config, strategy_obj)
-        current_instance.start(progress)
+        current_instance.start()
         elapsed = time.perf_counter() - start
         logger.info(
             f"Checking look ahead bias via backtests "
@@ -248,35 +235,29 @@ class LookaheadAnalysisSubFunctions:
             strategy_list = [config["strategy"]]
 
         # check if strategies can be properly loaded, only check them if they can be.
-        with get_progress_tracker() as progress:
-            strategy_task = (
-                progress.add_task("Lookahead analysis", total=len(strategy_list))
-                if len(strategy_list) > 1
-                else None
-            )
-            for strat in strategy_list:
-                for strategy_obj in strategy_objs:
-                    if strategy_obj["name"] == strat and strategy_obj not in strategy_list:
-                        if strategy_task is not None:
-                            progress.update(strategy_task, description=f"Analyzing {strat}")
-                        lookaheadAnalysis_instances.append(
-                            LookaheadAnalysisSubFunctions.initialize_single_lookahead_analysis(
-                                config, strategy_obj, progress
-                            )
+        for strat in strategy_list:
+            for strategy_obj in strategy_objs:
+                if strategy_obj["name"] == strat and strategy_obj not in strategy_list:
+                    lookaheadAnalysis_instances.append(
+                        LookaheadAnalysisSubFunctions.initialize_single_lookahead_analysis(
+                            config, strategy_obj
                         )
-                        break
-                if strategy_task is not None:
-                    progress.update(strategy_task, advance=1)
+                    )
+                    break
 
         # report the results
         if lookaheadAnalysis_instances:
             caption: str | None = None
             if any(
-                any(
-                    indicator.startswith("&")
-                    for indicator in inst.current_analysis.false_indicators
-                )
-                for inst in lookaheadAnalysis_instances
+                [
+                    any(
+                        [
+                            indicator.startswith("&")
+                            for indicator in inst.current_analysis.false_indicators
+                        ]
+                    )
+                    for inst in lookaheadAnalysis_instances
+                ]
             ):
                 caption = (
                     "Any indicators in 'biased_indicators' which are used within "

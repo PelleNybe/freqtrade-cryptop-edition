@@ -115,8 +115,9 @@ class StrategyUpdater:
 class NameUpdater(ast_comments.NodeTransformer):
     def generic_visit(self, node):
         # space is not yet transferred from buy/sell to entry/exit and thereby has to be skipped.
-        if isinstance(node, ast_comments.keyword) and node.arg == "space":
-            return node
+        if isinstance(node, ast_comments.keyword):
+            if node.arg == "space":
+                return node
 
         # from here on this is the original function.
         for field, old_value in ast_comments.iter_fields(node):
@@ -163,7 +164,7 @@ class NameUpdater(ast_comments.NodeTransformer):
         # if the name is in the mapping, update it
         node.id = self.check_dict(StrategyUpdater.name_mapping, node.id)
 
-        for info in StrategyUpdater.module_replacements.values():
+        for mod, info in StrategyUpdater.module_replacements.items():
             for old_attr, new_attr in info["replacements"]:
                 if node.id == old_attr:
                     node.id = new_attr
@@ -200,7 +201,7 @@ class NameUpdater(ast_comments.NodeTransformer):
         ):
             node.attr = "nr_of_successful_entries"
         if isinstance(node.value, ast_comments.Name):
-            for info in StrategyUpdater.module_replacements.values():
+            for mod, info in StrategyUpdater.module_replacements.items():
                 if node.value.id in info["aliases"]:
                     for old_attr, new_attr in info["replacements"]:
                         if node.attr == old_attr:
@@ -236,16 +237,15 @@ class NameUpdater(ast_comments.NodeTransformer):
         return node
 
     def visit_Subscript(self, node):
-        if (
-            isinstance(node.slice, ast_comments.Constant)
-            and node.slice.value in StrategyUpdater.rename_dict
-        ):
-            # Replace the slice attributes with the values from rename_dict
-            node.slice.value = StrategyUpdater.rename_dict[node.slice.value]
+        if isinstance(node.slice, ast_comments.Constant):
+            if node.slice.value in StrategyUpdater.rename_dict:
+                # Replace the slice attributes with the values from rename_dict
+                node.slice.value = StrategyUpdater.rename_dict[node.slice.value]
         if hasattr(node.slice, "elts"):
             self.visit_elts(node.slice.elts)
-        if hasattr(node.slice, "value") and hasattr(node.slice.value, "elts"):
-            self.visit_elts(node.slice.value.elts)
+        if hasattr(node.slice, "value"):
+            if hasattr(node.slice.value, "elts"):
+                self.visit_elts(node.slice.value.elts)
         return node
 
     # elts can have elts (technically recursively)

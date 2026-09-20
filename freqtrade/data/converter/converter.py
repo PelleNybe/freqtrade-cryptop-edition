@@ -6,36 +6,16 @@ import logging
 
 import numpy as np
 import pandas as pd
-from pandas import DataFrame, to_datetime
+from pandas import DataFrame
 
-from freqtrade.candle_columns import (
-    ALL_CANDLE_VALUE_COLUMNS,
-    candle_type_is_ohlcv,
-    get_candle_agg_dict,
-    get_candle_columns,
-    get_candle_dtypes,
-)
-from freqtrade.constants import Config
+from freqtrade.constants import DEFAULT_DATAFRAME_COLUMNS, Config
 from freqtrade.enums import CandleType, TradingMode
 
 
 logger = logging.getLogger(__name__)
 
 
-def add_candle_aliases(dataframe: DataFrame, candle_type: CandleType | str | None) -> DataFrame:
-    """
-    Add the "open" compatibility alias to funding rate dataframes.
-
-    Funding rates used to be stored as candles with the rate in "open" - keeping that
-    column available for compatibility reasons.
-    Other candle-types will not need this, as they'll be introduced with correct columns.
-    :param dataframe: Dataframe to add the alias to - modified in place
-    :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
-    :return: The same dataframe, for convenient chaining
-    """
-    if candle_type == CandleType.FUNDING_RATE and "funding_rate" in dataframe.columns:
-        dataframe["open"] = dataframe["funding_rate"]
-    return dataframe
+OHLCV_AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
 
 
 def ohlcv_to_dataframe(
@@ -45,7 +25,6 @@ def ohlcv_to_dataframe(
     *,
     fill_missing: bool = True,
     drop_incomplete: bool = True,
-    candle_type: CandleType = CandleType.SPOT,
 ) -> DataFrame:
     """
     Converts a list with candle (OHLCV) data (in format returned by ccxt.fetch_ohlcv)
@@ -56,108 +35,128 @@ def ohlcv_to_dataframe(
     :param fill_missing: fill up missing candles with 0 candles
                          (see ohlcv_fill_up_missing_data for details)
     :param drop_incomplete: Drop the last candle of the dataframe, assuming it's incomplete
-    :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
     :return: DataFrame
     """
     logger.debug(f"Converting candle (OHLCV) data to dataframe for pair {pair}.")
-    df = DataFrame(ohlcv, columns=get_candle_columns(candle_type))
+    if not ohlcv:
+        df = DataFrame(columns=DEFAULT_DATAFRAME_COLUMNS)
+        df["date"] = df["date"].astype("datetime64[ns, UTC]")
+    else:
+        # Use numpy for faster processing
+        ohlcv_np = np.array(ohlcv)
 
-    # Floor date to seconds to account for exchange imprecisions
-    from freqtrade.exchange import timeframe_to_floor_freq
+        # Floor date to seconds to account for exchange imprecisions
+        # Optimization: Integer arithmetic is faster than datetime conversion
+        # We use np.int64 to ensure we don't overflow on 32bit systems/timestamps
+        dates = pd.to_datetime(ohlcv_np[:, 0].astype(np.int64) // 1000, unit="s", utc=True)
 
-    resample_interval = timeframe_to_floor_freq(timeframe)
+        df = DataFrame(
+            {
+                "date": dates.astype("datetime64[ns, UTC]"),
+                "open": ohlcv_np[:, 1],
+                "high": ohlcv_np[:, 2],
+                "low": ohlcv_np[:, 3],
+                "close": ohlcv_np[:, 4],
+                "volume": ohlcv_np[:, 5],
+            },
+            copy=False,
+        )
 
-    df["date"] = to_datetime(df["date"], unit="ms", utc=True).dt.floor(resample_interval)
-
-    # Some exchanges return int values for Volume and even for OHLC.
-    # Convert them since TA-LIB indicators used in the strategy assume floats
-    # and fail with exception...
-    df = df.astype(dtype=get_candle_dtypes(candle_type))
     return clean_ohlcv_dataframe(
-        df,
-        timeframe,
-        pair,
-        fill_missing=fill_missing,
-        drop_incomplete=drop_incomplete,
-        candle_type=candle_type,
+        df, timeframe, pair, fill_missing=fill_missing, drop_incomplete=drop_incomplete
     )
 
 
 def clean_ohlcv_dataframe(
-    dataframe: DataFrame,
-    timeframe: str,
-    pair: str,
-    *,
-    fill_missing: bool,
-    drop_incomplete: bool,
-    candle_type: CandleType = CandleType.SPOT,
+    data: DataFrame, timeframe: str, pair: str, *, fill_missing: bool, drop_incomplete: bool
 ) -> DataFrame:
     """
     Cleanse a OHLCV dataframe by
       * Grouping it by date (removes duplicate tics)
       * dropping last candles if requested
       * Filling up missing data (if requested)
-      * Adding backwards-compatibility aliases for funding rate candles
-    :param dataframe: DataFrame containing candle (OHLCV) data.
+    :param data: DataFrame containing candle (OHLCV) data.
     :param timeframe: timeframe (e.g. 5m). Used to fill up eventual missing data
     :param pair: Pair this data is for (used to warn if fillup was necessary)
     :param fill_missing: fill up missing candles with 0 candles
                          (see ohlcv_fill_up_missing_data for details)
     :param drop_incomplete: Drop the last candle of the dataframe, assuming it's incomplete
-    :param candle_type: Candle type to use (spot, futures, funding_rate, ...)
     :return: DataFrame
     """
     # group by index and aggregate results to eliminate duplicate ticks
-    dataframe = dataframe.groupby(by="date", as_index=False, sort=True).agg(
-        get_candle_agg_dict(candle_type)
-    )
+    # Optimization: Skip groupby if dates are unique
+    if not data["date"].is_unique:
+        data = data.groupby(by="date", as_index=False, sort=False).agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "max",
+            }
+        )
+    else:
+        # Optimization: Skip sort if already sorted (monotonic increasing)
+        if not data["date"].is_monotonic_increasing:
+            data = data.sort_values(by="date")
+
+        if not (
+            isinstance(data.index, pd.RangeIndex) and data.index.start == 0 and data.index.step == 1
+        ):
+            data = data.reset_index(drop=True)
+
+        # Optimization: Only reorder/filter columns if necessary to avoid copy
+        if list(data.columns) != ["date", "open", "high", "low", "close", "volume"]:
+            data = data[["date", "open", "high", "low", "close", "volume"]]
+
     # eliminate partial candle
     if drop_incomplete:
-        dataframe.drop(dataframe.tail(1).index, inplace=True)
+        data = data.iloc[:-1]
         logger.debug("Dropping last candle")
 
     if fill_missing:
-        dataframe = ohlcv_fill_up_missing_data(dataframe, timeframe, pair, candle_type=candle_type)
-    # The aggregation above drops any column that isn't aggregated - so aliases have to be
-    # (re-)added afterwards.
-    return add_candle_aliases(dataframe, candle_type)
+        return ohlcv_fill_up_missing_data(data, timeframe, pair)
+    else:
+        return data
 
 
-def ohlcv_fill_up_missing_data(
-    dataframe: DataFrame,
-    timeframe: str,
-    pair: str,
-    candle_type: CandleType = CandleType.SPOT,
-) -> DataFrame:
+def ohlcv_fill_up_missing_data(dataframe: DataFrame, timeframe: str, pair: str) -> DataFrame:
     """
     Fills up missing data with 0 volume rows,
     using the previous close as price for "open", "high", "low" and "close", volume is set to 0
 
-    Candle types that carry a single value (e.g. funding rates) have no candle to fabricate -
-    inventing one would silently make up rates - so they are returned unchanged.
     """
-    if not candle_type_is_ohlcv(candle_type):
-        logger.debug(f"Skipping fillup for {pair}, {timeframe} - not applicable to {candle_type}.")
+    if dataframe.empty:
         return dataframe
 
-    from freqtrade.exchange import timeframe_to_resample_freq
+    from freqtrade.exchange import timeframe_to_msecs, timeframe_to_resample_freq
 
-    ohlcv_dict = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    # Optimization: Check if data is contiguous before resampling
+    # 1ms = 1_000_000 ns
+    expected_delta_ns = timeframe_to_msecs(timeframe) * 1_000_000
+    dates = dataframe["date"].values.view(np.int64)
+    # Check if all time differences match the expected timeframe
+    # AND if the first date is aligned to the timeframe (e.g. 00:00 for 1d)
+    is_aligned = dates[0] % expected_delta_ns == 0
+    if is_aligned and np.all(dates[1:] - dates[:-1] == expected_delta_ns):
+        return dataframe
+
     resample_interval = timeframe_to_resample_freq(timeframe)
     # Resample to create "NAN" values
-    df = dataframe.resample(resample_interval, on="date").agg(ohlcv_dict)
+    df = dataframe.resample(resample_interval, on="date").agg(OHLCV_AGG)
 
     # Forwardfill close for missing columns
     df["close"] = df["close"].ffill()
     # Use close for "open, high, low"
-    df.loc[:, ["open", "high", "low"]] = df[["open", "high", "low"]].fillna(
+    df = df.fillna(
         value={
             "open": df["close"],
             "high": df["close"],
             "low": df["close"],
-        }
+            "volume": 0,
+        },
     )
-    df.reset_index(inplace=True)
+    df = df.reset_index()
     len_before = len(dataframe)
     len_after = len(df)
     pct_missing = (len_after - len_before) / len_before if len_before > 0 else 0
@@ -219,18 +218,6 @@ def trim_dataframes(
     return processed
 
 
-def count_total_order_book(bids: list, asks: list) -> tuple[float, float]:
-    """
-    Calculate the total size of bids and asks in the order book and return them as a tuple.
-    :param bids: List of bid levels in the order book containing [price, size].
-    :param asks: List of ask levels in the order book containing [price, size].
-    :return: A tuple containing the total size of bids and asks in the order book.
-    """
-    order_book_bids = np.nansum(np.asarray([level[1] for level in bids], dtype=float))
-    order_book_asks = np.nansum(np.asarray([level[1] for level in asks], dtype=float))
-    return order_book_bids, order_book_asks
-
-
 def order_book_to_dataframe(bids: list, asks: list) -> DataFrame:
     """
     Gets order book list, returns dataframe with below format per suggested by creslin
@@ -238,30 +225,36 @@ def order_book_to_dataframe(bids: list, asks: list) -> DataFrame:
      b_sum       b_size       bids       asks       a_size       a_sum
     -------------------------------------------------------------------
     """
-    cols = ["bids", "b_size"]
+    # Use numpy for faster processing
+    bids_data = np.array(bids)
+    asks_data = np.array(asks)
 
-    bids_frame = DataFrame(bids, columns=cols)
-    # add cumulative sum column
-    bids_frame["b_sum"] = bids_frame["b_size"].cumsum()
-    cols2 = ["asks", "a_size"]
-    asks_frame = DataFrame(asks, columns=cols2)
-    # add cumulative sum column
-    asks_frame["a_sum"] = asks_frame["a_size"].cumsum()
+    b_bids = bids_data[:, 0] if bids_data.size > 0 else np.array([])
+    b_size = bids_data[:, 1] if bids_data.size > 0 else np.array([])
+    b_sum = np.cumsum(b_size)
 
-    frame = pd.concat(
-        [
-            bids_frame["b_sum"],
-            bids_frame["b_size"],
-            bids_frame["bids"],
-            asks_frame["asks"],
-            asks_frame["a_size"],
-            asks_frame["a_sum"],
-        ],
-        axis=1,
-        keys=["b_sum", "b_size", "bids", "asks", "a_size", "a_sum"],
-    )
-    # logger.info('order book %s', frame )
-    return frame
+    a_asks = asks_data[:, 0] if asks_data.size > 0 else np.array([])
+    a_size = asks_data[:, 1] if asks_data.size > 0 else np.array([])
+    a_sum = np.cumsum(a_size)
+
+    # Optimization: Create DataFrame directly from dict of arrays if lengths match.
+    # Otherwise use concat to handle alignment.
+    if len(b_bids) == len(a_asks):
+        return pd.DataFrame(
+            {
+                "b_sum": b_sum,
+                "b_size": b_size,
+                "bids": b_bids,
+                "asks": a_asks,
+                "a_size": a_size,
+                "a_sum": a_sum,
+            }
+        )
+
+    # Fallback for mismatched lengths (e.g. at end of orderbook)
+    df_bids = pd.DataFrame({"b_sum": b_sum, "b_size": b_size, "bids": b_bids})
+    df_asks = pd.DataFrame({"asks": a_asks, "a_size": a_size, "a_sum": a_sum})
+    return pd.concat([df_bids, df_asks], axis=1)
 
 
 def convert_ohlcv_format(
@@ -335,11 +328,13 @@ def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
     :return: Dataframe converted to float/int 32s
     """
 
-    logger.debug(f"Memory usage of dataframe is {df.memory_usage().sum() / 1024**2:.2f} MB")
+    logger.debug(
+        f"Memory usage of dataframe before downcast: {df.memory_usage().sum() / 1024**2:.2f} MB"
+    )
 
     df_dtypes = df.dtypes
     for column, dtype in df_dtypes.items():
-        if column in ALL_CANDLE_VALUE_COLUMNS:
+        if column == "date":
             continue
         if dtype == np.float64:
             df_dtypes[column] = np.float32
@@ -347,6 +342,6 @@ def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
             df_dtypes[column] = np.int32
     df = df.astype(df_dtypes)
 
-    logger.debug(f"Memory usage after optimization is: {df.memory_usage().sum() / 1024**2:.2f} MB")
+    logger.debug(f"Memory usage after downcast: {df.memory_usage().sum() / 1024**2:.2f} MB")
 
     return df
