@@ -20,7 +20,8 @@ from freqtrade.constants import (
     PairWithTimeframe,
 )
 from freqtrade.data.history import get_datahandler, load_pair_history
-from freqtrade.data.sentiment import SentimentProvider
+from freqtrade.data.mempool import MempoolDaemon
+from freqtrade.data.sentiment import NLPSentimentDaemon
 from freqtrade.enums import CandleType, RPCMessageType, RunMode, TradingMode
 from freqtrade.exceptions import ExchangeError, OperationalException
 from freqtrade.exchange import Exchange, timeframe_to_prev_date, timeframe_to_seconds
@@ -70,7 +71,13 @@ class DataProvider:
         self.producers = self._config.get("external_message_consumer", {}).get("producers", [])
         self.external_data_enabled = len(self.producers) > 0
 
-        self._sentiment = SentimentProvider(config)
+        self._sentiment_daemon = NLPSentimentDaemon(self._config)
+        if self._sentiment_daemon.enabled:
+            self._sentiment_daemon.start()
+
+        self._mempool_daemon = MempoolDaemon(self._config)
+        if self._mempool_daemon.enabled:
+            self._mempool_daemon.start()
 
     def _set_dataframe_max_index(self, pair: str, limit_index: int):
         """
@@ -658,3 +665,30 @@ class DataProvider:
         :return: Sentiment score.
         """
         return self._sentiment.get_sentiment(pair)
+
+    def get_global_sentiment(self) -> float:
+        """
+        Get the current global market sentiment from the NLP Sentiment Daemon.
+        Returns a float between -1.0 (bearish) and 1.0 (bullish).
+        """
+        if getattr(self, "_sentiment_daemon", None):
+            return self._sentiment_daemon.get_global_sentiment()
+        return 0.0
+
+    def get_pair_sentiment(self, pair: str) -> float:
+        """
+        Get the current sentiment for a specific pair from the NLP Sentiment Daemon.
+        Returns a float between -1.0 (bearish) and 1.0 (bullish).
+        """
+        if getattr(self, "_sentiment_daemon", None):
+            return self._sentiment_daemon.get_pair_sentiment(pair)
+        return 0.0
+
+
+    def get_mempool_activity(self) -> float:
+        """
+        Get the current normalized mempool activity score (0.0 to 1.0).
+        """
+        if getattr(self, '_mempool_daemon', None):
+            return self._mempool_daemon.get_mempool_activity()
+        return 0.0

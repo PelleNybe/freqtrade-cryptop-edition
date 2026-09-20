@@ -201,6 +201,11 @@ class FreqtradeBot(LoggingMixin):
         """
         logger.info("Cleaning up modules ...")
 
+        # Stop Sentiment Daemon
+        if hasattr(self, "dataprovider") and hasattr(self.dataprovider, "_sentiment_daemon"):
+            self.dataprovider._sentiment_daemon.stop()
+            self.dataprovider._sentiment_daemon.join(timeout=2.0)
+
         # Stop DefiLlama worker
         risk_guard.stop()
 
