@@ -9,6 +9,7 @@ from freqtrade.constants import Config
 from freqtrade.enums import NO_ECHO_MESSAGES, RPCMessageType
 from freqtrade.rpc import RPC, RPCHandler
 from freqtrade.rpc.rpc_types import RPCSendMsg
+from freqtrade.rpc.zk_proof import ZKTradeProver
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,9 @@ class RPCManager:
         """Initializes all enabled rpc modules"""
         self.registered_modules: list[RPCHandler] = []
         self._rpc = RPC(freqtrade)
+
+        # Init ZK Prover for trade proofs
+        self.zk_prover = ZKTradeProver(freqtrade.config)
         config = freqtrade.config
         # Enable telegram
         if config.get("telegram", {}).get("enabled", False):
@@ -88,11 +92,21 @@ class RPCManager:
         """
         Send given message to all registered rpc modules.
         A message consists of one or more key value pairs of strings.
-        e.g.:
-        {
-            'status': 'stopping bot'
-        }
         """
+
+        # Inject ZK Proofs for exit trades
+        if (
+            msg.get("type")
+            and msg.get("type").name == "EXIT"
+            and getattr(self, "zk_prover", None)
+            and self.zk_prover.enabled
+        ):
+            trade = msg.get("trade")
+            if trade:
+                proof = self.zk_prover.generate_proof(trade)
+                if proof:
+                    msg["zk_proof"] = proof
+
         if msg.get("type") not in NO_ECHO_MESSAGES:
             logger.info("Sending rpc message: %s", msg)
         for mod in self.registered_modules:
