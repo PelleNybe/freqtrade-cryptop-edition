@@ -400,7 +400,7 @@ Hyperliquid handles deposits and withdrawals on the Arbitrum One chain, a Layer 
 
 ### Hyperliquid Vault / Subaccount
 
-Hyperliquid allows you to create either a vault or a subaccount.  
+Hyperliquid allows you to create either a vault or a subaccount.
 To use these with Freqtrade, you will need to use the following configuration pattern:
 
 ``` json

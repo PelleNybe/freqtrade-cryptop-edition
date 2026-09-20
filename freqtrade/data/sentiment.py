@@ -1,54 +1,132 @@
 import logging
-from datetime import datetime
+import threading
+import time
+import urllib.request
+import xml.etree.ElementTree as ET
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
 
 
-class SentimentProvider:
+class NLPSentimentDaemon(threading.Thread):
     """
-    Provides sentiment analysis data for pairs.
-    Currently a mock implementation.
+    Hyper-Local NLP Sentiment Daemon (Quantized SLM).
+    Periodically fetches RSS news, processes sentiment offline using a quantized SLM,
+    and caches the sentiment score [-1.0 to 1.0] for strategies.
     """
 
-    def __init__(self, config: dict):
-        self._config = config
-        self._cache: dict[str, dict[str, float | datetime]] = {}
-        self._cache_ttl = 3600  # 1 hour
-        logger.warning(
-            "SentimentProvider is currently a mock implementation returning neutral values."
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(name="NLPSentimentDaemon", daemon=True)
+        self.config = config
+        self.sentiment_config = config.get("nlp_sentiment", {})
+        self.enabled = self.sentiment_config.get("enabled", False)
+        self.interval = self.sentiment_config.get("interval_sec", 300)
+        self.rss_feeds = self.sentiment_config.get("rss_feeds", ["https://cointelegraph.com/rss"])
+        self.model_path = self.sentiment_config.get(
+            "model_path", "models/llama-2-7b-chat.Q4_K_M.gguf"
         )
 
-    def get_sentiment(self, pair: str) -> float:
-        """
-        Get sentiment for a pair.
-        Returns a float between -1.0 (very negative) and 1.0 (very positive).
-        0.0 is neutral.
-        """
-        now = datetime.now()
+        self.llm = None
+        self._shutdown = threading.Event()
 
-        # Check cache
-        if pair in self._cache:
-            last_update = self._cache[pair]["timestamp"]
-            if (
-                isinstance(last_update, datetime)
-                and (now - last_update).total_seconds() < self._cache_ttl
-            ):
-                # Helper to ensure type safety for return
-                val = self._cache[pair]["value"]
-                return float(val) if isinstance(val, (int, float)) else 0.0
+        # Cache of pair -> sentiment score
+        self.sentiment_cache: dict[str, float] = {}
+        # Global market sentiment
+        self.global_sentiment: float = 0.0
 
-        # Fetch new sentiment
-        sentiment = self._fetch_sentiment_from_api(pair)
+        if self.enabled:
+            self._init_model()
 
-        self._cache[pair] = {"timestamp": now, "value": sentiment}
+    def _init_model(self):
+        try:
+            from llama_cpp import Llama
 
-        return sentiment
+            # Load the highly quantized SLM
+            self.llm = Llama(model_path=self.model_path, verbose=False, n_ctx=512)
+            logger.info(f"Loaded SLM from {self.model_path} for offline sentiment analysis.")
+        except ImportError:
+            logger.error(
 
-    def _fetch_sentiment_from_api(self, pair: str) -> float:
-        """
-        Mock fetching sentiment from an external API.
-        """
-        # Return neutral sentiment 0.0 to avoid random behavior in trading.
-        # Implement real API call here.
-        return 0.0
+                    "llama-cpp-python missing. Run `pip install llama-cpp-python` "
+                    "to use NLP Sentiment Daemon."
+
+            )
+            self.enabled = False
+        except Exception as e:
+            logger.error(f"Failed to load SLM model at {self.model_path}: {e}")
+            self.enabled = False
+
+    def stop(self):
+        self._shutdown.set()
+
+    def run(self):
+        if not self.enabled or not self.llm:
+            return
+
+        logger.info("Starting NLP Sentiment Daemon...")
+        while not self._shutdown.is_set():
+            try:
+                self._update_sentiment()
+            except Exception as e:
+                logger.warning(f"Error updating sentiment: {e}")
+
+            # Sleep in chunks to allow responsive shutdown
+            for _ in range(self.interval):
+                if self._shutdown.is_set():
+                    break
+                time.sleep(1)
+
+    def _update_sentiment(self):
+        news_items = []
+        for feed_url in self.rss_feeds:
+            try:
+                req = urllib.request.Request(feed_url, headers={"User-Agent": "Mozilla/5.0"})  # noqa: S310
+                with urllib.request.urlopen(req, timeout=10) as response:  # noqa: S310
+                    xml_data = response.read()
+                    root = ET.fromstring(xml_data)  # noqa: S314
+                    for item in root.findall(".//item")[:5]:  # Take top 5 from each feed
+                        title = item.findtext("title")
+                        if title:
+                            news_items.append(title)
+            except Exception as e:
+                logger.warning(f"Failed to fetch RSS feed {feed_url}: {e}")
+
+        if not news_items:
+            return
+
+        # Simple prompt to rate sentiment
+        scores = []
+        for news in news_items:
+            prompt = (
+                f"Analyze the sentiment of the following crypto news headline and "
+                f"respond with ONLY a single float number between -1.0 (extremely bearish) "
+                f"and 1.0 (extremely bullish). Headline: '{news}'"
+            )
+            try:
+                # Run inference
+                output = self.llm(prompt, max_tokens=10, stop=["\n"], echo=False)
+                result_text = output["choices"][0]["text"].strip()
+
+                # Try to extract a float from the response
+                import re
+
+                match = re.search(r"[-+]?\d*\.\d+|\d+", result_text)
+                if match:
+                    score = float(match.group())
+                    score = max(-1.0, min(1.0, score))
+                    scores.append(score)
+            except Exception as e:
+                logger.debug(f"Failed to parse SLM output for sentiment: {e}")
+
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            self.global_sentiment = avg_score
+            logger.info(f"Updated global market sentiment to: {self.global_sentiment:.2f}")
+
+    def get_global_sentiment(self) -> float:
+        return self.global_sentiment
+
+    def get_pair_sentiment(self, pair: str) -> float:
+        # For simplicity, fallback to global sentiment if pair-specific isn't parsed
+        return self.sentiment_cache.get(pair, self.global_sentiment)

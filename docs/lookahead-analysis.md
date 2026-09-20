@@ -50,7 +50,7 @@ It will start with a backtest of all pairs to generate a baseline for indicators
 After this initial backtest runs, it will look if the `minimum-trade-amount` is met and if not cancel the lookahead-analysis for this strategy.  
 If this happens, use a wider timerange to get more trades for the analysis, or use a timerange where more trades occur.
 
-After setting the baseline it will then do additional backtest runs for every entry and exit separately.  
+After setting the baseline it will then do additional backtest runs for every entry and exit separately.
 When these verification backtests complete, it will compare both dataframes (baseline and sliced) for any difference in columns' value and report the bias.
 After all signals have been verified or falsified a result table will be generated for the user to see.
 

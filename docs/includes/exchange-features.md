@@ -1,5 +1,5 @@
 
-| Exchange | Mode | Margin mode | Stoploss type | 
+| Exchange | Mode | Margin mode | Stoploss type |
 |---------|---------|------|------------------|
 | [Binance](exchanges.md#binance) | spot | | limit |
 | [Binance](exchanges.md#binance) | futures | isolated, cross | market, limit |
