@@ -38,8 +38,7 @@ class ApiBG:
 
     # Generic background jobs
 
-    # TODO: Change this to FtTTLCache
-    jobs: dict[str, JobsContainer] = FtTTLCache(maxsize=1000, ttl=3600)  # type: ignore
+    jobs: FtTTLCache = FtTTLCache(maxsize=1000, ttl=3600)
     # Pairlist evaluate things
     pairlist_running: bool = False
     download_data_running: bool = False
