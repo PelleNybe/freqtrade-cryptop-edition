@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/rpc/rpc.py", "r") as f:
+
+with open("freqtrade/rpc/rpc.py") as f:
     content = f.read()
 
 new_sysinfo = """    @staticmethod
@@ -27,7 +28,11 @@ new_sysinfo = """    @staticmethod
             "disk_write_bytes": disk_write,
         }"""
 
-content = re.sub(r'    @staticmethod\n    def _rpc_sysinfo\(\) -> dict\[str, Any\]:\n        return \{\n            "cpu_pct": psutil\.cpu_percent\(interval=1, percpu=True\),\n            "ram_pct": psutil\.virtual_memory\(\)\.percent,\n        \}', new_sysinfo, content)
+content = re.sub(
+    r'    @staticmethod\n    def _rpc_sysinfo\(\) -> dict\[str, Any\]:\n        return \{\n            "cpu_pct": psutil\.cpu_percent\(interval=1, percpu=True\),\n            "ram_pct": psutil\.virtual_memory\(\)\.percent,\n        \}',
+    new_sysinfo,
+    content,
+)
 
 with open("freqtrade/rpc/rpc.py", "w") as f:
     f.write(content)

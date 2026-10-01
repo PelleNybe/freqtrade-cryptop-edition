@@ -1,12 +1,12 @@
-with open('freqtrade/exchange/exchange.py', 'r') as f:
+with open("freqtrade/exchange/exchange.py") as f:
     lines = f.readlines()
 
 new_lines = []
 imports = []
 for line in lines:
-    if line.startswith('import threading'):
+    if line.startswith("import threading"):
         imports.append(line)
-    elif line.startswith('import time') and 'exchange' in line:
+    elif line.startswith("import time") and "exchange" in line:
         imports.append(line)
     else:
         new_lines.append(line)
@@ -25,5 +25,5 @@ for i, line in enumerate(new_lines):
     else:
         final_lines.append(line)
 
-with open('freqtrade/exchange/exchange.py', 'w') as f:
+with open("freqtrade/exchange/exchange.py", "w") as f:
     f.writelines(final_lines)

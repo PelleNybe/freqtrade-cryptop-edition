@@ -73,8 +73,19 @@ router = APIRouter()
 
 @router_public.get("/ping", response_model=Ping, tags=["Info"])
 def ping():
-    """simple ping"""
-    return {"status": "pong"}
+    """Advanced ping with DB health check"""
+    try:
+        from sqlalchemy import text
+
+        from freqtrade.persistence import Trade
+
+        # Simple DB check
+        Trade.session.execute(text("SELECT 1"))
+        return {"status": "pong"}
+    except Exception:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="Database connection failed")
 
 
 @router.get("/version", response_model=Version, tags=["Info"])

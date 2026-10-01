@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/rpc/rpc_manager.py", "r") as f:
+
+with open("freqtrade/rpc/rpc_manager.py") as f:
     content = f.read()
 
 prom_patch = """        # EDGE OPTIMIZATION: Enable MQTT
@@ -20,7 +21,7 @@ prom_patch = """        # EDGE OPTIMIZATION: Enable MQTT
 content = re.sub(
     r'        # EDGE OPTIMIZATION: Enable MQTT\n        if config\.get\("mqtt", \{\}\)\.get\("enabled", False\):\n            logger\.info\("Enabling rpc\.mqtt \.\.\."\)\n            from freqtrade\.rpc\.mqtt import MQTT\n\n            self\.registered_modules\.append\(MQTT\(freqtrade\)\)',
     prom_patch,
-    content
+    content,
 )
 
 with open("freqtrade/rpc/rpc_manager.py", "w") as f:

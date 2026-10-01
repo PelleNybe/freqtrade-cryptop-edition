@@ -1,4 +1,4 @@
-with open("freqtrade/rpc/prometheus.py", "r") as f:
+with open("freqtrade/rpc/prometheus.py") as f:
     lines = f.readlines()
 
 for i, line in enumerate(lines):

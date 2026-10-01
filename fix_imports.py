@@ -1,10 +1,10 @@
-with open('freqtrade/persistence/trade_model.py', 'r') as f:
+with open("freqtrade/persistence/trade_model.py") as f:
     lines = f.readlines()
 
 new_lines = []
 imports = []
 for line in lines:
-    if line.startswith('from contextlib import contextmanager'):
+    if line.startswith("from contextlib import contextmanager"):
         imports.append(line)
     else:
         new_lines.append(line)
@@ -23,5 +23,5 @@ for i, line in enumerate(new_lines):
     else:
         final_lines.append(line)
 
-with open('freqtrade/persistence/trade_model.py', 'w') as f:
+with open("freqtrade/persistence/trade_model.py", "w") as f:
     f.writelines(final_lines)

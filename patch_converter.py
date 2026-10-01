@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/data/converter/converter.py", "r") as f:
+
+with open("freqtrade/data/converter/converter.py") as f:
     content = f.read()
 
 # Make reduce_dataframe_footprint more aggressive
@@ -28,7 +29,12 @@ new_func = """def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
     return df
 """
 
-content = re.sub(r'def reduce_dataframe_footprint\(df: DataFrame\) -> DataFrame:.*?return df', new_func, content, flags=re.DOTALL)
+content = re.sub(
+    r"def reduce_dataframe_footprint\(df: DataFrame\) -> DataFrame:.*?return df",
+    new_func,
+    content,
+    flags=re.DOTALL,
+)
 
 with open("freqtrade/data/converter/converter.py", "w") as f:
     f.write(content)

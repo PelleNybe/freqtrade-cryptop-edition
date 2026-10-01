@@ -1,13 +1,17 @@
 import re
 
-with open('freqtrade/rpc/rpc_manager.py', 'r') as f:
+
+with open("freqtrade/rpc/rpc_manager.py") as f:
     content = f.read()
 
 import_patch = """from freqtrade.rpc.rpc import RPC, RPCHandler
 from freqtrade.rpc.rpc_types import RPCSendMsg
 from freqtrade.rpc.zk_proof import ZKTradeProver
 """
-content = content.replace("from freqtrade.rpc.rpc import RPC, RPCHandler\nfrom freqtrade.rpc.rpc_types import RPCSendMsg\n", import_patch)
+content = content.replace(
+    "from freqtrade.rpc.rpc import RPC, RPCHandler\nfrom freqtrade.rpc.rpc_types import RPCSendMsg\n",
+    import_patch,
+)
 
 init_patch = """        # Enable MQTT
         if config.get("mqtt", {}).get("enabled", False):
@@ -27,7 +31,10 @@ init_zk = """        self.registered_modules: list[RPCHandler] = []
         # Init ZK Prover for trade proofs
         self.zk_prover = ZKTradeProver(freqtrade.config)"""
 
-content = content.replace("        self.registered_modules: list[RPCHandler] = []\n        self._rpc = RPC(freqtrade)", init_zk)
+content = content.replace(
+    "        self.registered_modules: list[RPCHandler] = []\n        self._rpc = RPC(freqtrade)",
+    init_zk,
+)
 
 
 # Patch send_msg to inject ZK Proofs for EXIT trades
@@ -53,8 +60,8 @@ content = re.sub(
     r'    def send_msg\(self, msg: dict\[str, Any\]\) -> None:\n.*?\n        logger\.info\(f"Sending rpc message: \{msg\}"\)',
     send_msg_patch,
     content,
-    flags=re.DOTALL
+    flags=re.DOTALL,
 )
 
-with open('freqtrade/rpc/rpc_manager.py', 'w') as f:
+with open("freqtrade/rpc/rpc_manager.py", "w") as f:
     f.write(content)

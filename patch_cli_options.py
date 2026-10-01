@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/commands/cli_options.py", "r") as f:
+
+with open("freqtrade/commands/cli_options.py") as f:
     content = f.read()
 
 resume_arg = """    "hyperopt_resume": Arg(

@@ -1,6 +1,4 @@
-import re
-
-with open('freqtrade/freqai/base_models/BasePyTorchClassifier.py', 'r') as f:
+with open("freqtrade/freqai/base_models/BasePyTorchClassifier.py") as f:
     content = f.read()
 
 patch_code = """        model = self.fit(dd, dk)
@@ -14,5 +12,5 @@ patch_code = """        model = self.fit(dd, dk)
 
 content = content.replace("        model = self.fit(dd, dk)\n        end_time = time()", patch_code)
 
-with open('freqtrade/freqai/base_models/BasePyTorchClassifier.py', 'w') as f:
+with open("freqtrade/freqai/base_models/BasePyTorchClassifier.py", "w") as f:
     f.write(content)

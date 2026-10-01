@@ -1,6 +1,7 @@
 import re
 
-with open('freqtrade/rpc/rpc_manager.py', 'r') as f:
+
+with open("freqtrade/rpc/rpc_manager.py") as f:
     content = f.read()
 
 send_msg_patch = """    def send_msg(self, msg: RPCSendMsg) -> None:
@@ -24,8 +25,8 @@ content = re.sub(
     r'    def send_msg\(self, msg: RPCSendMsg\) -> None:.*?logger\.info\("Sending rpc message: %s", msg\)',
     send_msg_patch,
     content,
-    flags=re.DOTALL
+    flags=re.DOTALL,
 )
 
-with open('freqtrade/rpc/rpc_manager.py', 'w') as f:
+with open("freqtrade/rpc/rpc_manager.py", "w") as f:
     f.write(content)

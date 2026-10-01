@@ -1,10 +1,10 @@
-with open('freqtrade/rpc/apprise_notification.py', 'r') as f:
+with open("freqtrade/rpc/apprise_notification.py") as f:
     lines = f.readlines()
 
 new_lines = []
 imports = []
 for line in lines:
-    if line.startswith('import apprise'):
+    if line.startswith("import apprise"):
         imports.append(line)
     else:
         new_lines.append(line)
@@ -23,5 +23,5 @@ for i, line in enumerate(new_lines):
     else:
         final_lines.append(line)
 
-with open('freqtrade/rpc/apprise_notification.py', 'w') as f:
+with open("freqtrade/rpc/apprise_notification.py", "w") as f:
     f.writelines(final_lines)

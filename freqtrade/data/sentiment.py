@@ -47,10 +47,8 @@ class NLPSentimentDaemon(threading.Thread):
             logger.info(f"Loaded SLM from {self.model_path} for offline sentiment analysis.")
         except ImportError:
             logger.error(
-
-                    "llama-cpp-python missing. Run `pip install llama-cpp-python` "
-                    "to use NLP Sentiment Daemon."
-
+                "llama-cpp-python missing. Run `pip install llama-cpp-python` "
+                "to use NLP Sentiment Daemon."
             )
             self.enabled = False
         except Exception as e:

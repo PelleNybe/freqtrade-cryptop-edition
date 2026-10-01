@@ -1,6 +1,4 @@
-import re
-
-with open('freqtrade/freqai/freqai_interface.py', 'r') as f:
+with open("freqtrade/freqai/freqai_interface.py") as f:
     content = f.read()
 
 # Add a deque to the FreqaiInterface init
@@ -79,5 +77,5 @@ old_thermal = """    def _check_thermal_throttle(self):
 
 content = content.replace(old_thermal, thermal_patch)
 
-with open('freqtrade/freqai/freqai_interface.py', 'w') as f:
+with open("freqtrade/freqai/freqai_interface.py", "w") as f:
     f.write(content)

@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/commands/arguments.py", "r") as f:
+
+with open("freqtrade/commands/arguments.py") as f:
     content = f.read()
 
 resume_arg = """    "export_csv",

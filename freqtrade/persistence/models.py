@@ -1,6 +1,7 @@
 """
 This module contains the class to persist trades into SQLite
 """
+
 import functools
 import logging
 import threading

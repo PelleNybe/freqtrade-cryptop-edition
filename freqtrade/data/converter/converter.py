@@ -323,25 +323,21 @@ def convert_ohlcv_format(
 
 def reduce_dataframe_footprint(df: DataFrame) -> DataFrame:
     """
-    Ensure all values are float32 in the incoming dataframe.
-    :param df: Dataframe to be converted to float/int 32s
-    :return: Dataframe converted to float/int 32s
+    Ensure all values are float32/int32 in the incoming dataframe.
+    Uses pd.to_numeric downcasting for safer and more aggressive memory reduction.
     """
-
     logger.debug(
         f"Memory usage of dataframe before downcast: {df.memory_usage().sum() / 1024**2:.2f} MB"
     )
 
-    df_dtypes = df.dtypes
-    for column, dtype in df_dtypes.items():
+    for column in df.columns:
         if column == "date":
             continue
-        if dtype == np.float64:
-            df_dtypes[column] = np.float32
-        elif dtype == np.int64:
-            df_dtypes[column] = np.int32
-    df = df.astype(df_dtypes)
+        col_type = df[column].dtype
+        if col_type == np.float64:
+            df[column] = pd.to_numeric(df[column], downcast="float")
+        elif col_type == np.int64:
+            df[column] = pd.to_numeric(df[column], downcast="integer")
 
     logger.debug(f"Memory usage after downcast: {df.memory_usage().sum() / 1024**2:.2f} MB")
-
     return df

@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/rpc/rpc_manager.py", "r") as f:
+
+with open("freqtrade/rpc/rpc_manager.py") as f:
     content = f.read()
 
 apprise_patch = """        # EDGE OPTIMIZATION: Enable Prometheus
@@ -20,7 +21,7 @@ apprise_patch = """        # EDGE OPTIMIZATION: Enable Prometheus
 content = re.sub(
     r'        # EDGE OPTIMIZATION: Enable Prometheus\n        if config\.get\("prometheus", \{\}\)\.get\("enabled", False\):\n            logger\.info\("Enabling rpc\.prometheus \.\.\."\)\n            from freqtrade\.rpc\.prometheus import PrometheusExporter\n\n            self\.registered_modules\.append\(PrometheusExporter\(freqtrade\)\)',
     apprise_patch,
-    content
+    content,
 )
 
 with open("freqtrade/rpc/rpc_manager.py", "w") as f:

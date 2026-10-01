@@ -854,6 +854,9 @@ class SysInfo(BaseModel):
     cpu_temp: float | None = None
     disk_read_bytes: int | None = None
     disk_write_bytes: int | None = None
+    uptime_seconds: int | None = None
+    python_version: str | None = None
+    freqtrade_version: str | None = None
 
 
 class Health(BaseModel):

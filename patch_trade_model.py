@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/persistence/trade_model.py", "r") as f:
+
+with open("freqtrade/persistence/trade_model.py") as f:
     content = f.read()
 
 batch_commit = """    @staticmethod
@@ -11,7 +12,11 @@ batch_commit = """    @staticmethod
         else:
             Trade.session.commit()
 """
-content = re.sub(r'    @staticmethod\n    def commit\(\):\n        Trade\.session\.commit\(\)', batch_commit, content)
+content = re.sub(
+    r"    @staticmethod\n    def commit\(\):\n        Trade\.session\.commit\(\)",
+    batch_commit,
+    content,
+)
 
 batch_cm = """from contextlib import contextmanager
 

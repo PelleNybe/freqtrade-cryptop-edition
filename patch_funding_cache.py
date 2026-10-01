@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/exchange/exchange.py", "r") as f:
+
+with open("freqtrade/exchange/exchange.py") as f:
     content = f.read()
 
 worker_patch = """    def _start_funding_worker(self):
@@ -43,9 +44,9 @@ worker_patch = """    def _start_funding_worker(self):
         return self._funding_rate_cache.get(pair, {"fundingRate": 0.0, "markPrice": 0.0, "timestamp": 0.0})"""
 
 content = re.sub(
-    r'    def validate_freqai\(self, config: Config\) -> None:',
-    worker_patch + '\n\n    def validate_freqai(self, config: Config) -> None:',
-    content
+    r"    def validate_freqai\(self, config: Config\) -> None:",
+    worker_patch + "\n\n    def validate_freqai(self, config: Config) -> None:",
+    content,
 )
 
 with open("freqtrade/exchange/exchange.py", "w") as f:

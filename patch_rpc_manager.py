@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/rpc/rpc_manager.py", "r") as f:
+
+with open("freqtrade/rpc/rpc_manager.py") as f:
     content = f.read()
 
 mqtt_patch = """        # Enable Webhook
@@ -20,7 +21,7 @@ mqtt_patch = """        # Enable Webhook
 content = re.sub(
     r'        # Enable Webhook\n        if config\.get\("webhook", \{\}\)\.get\("enabled", False\):\n            logger\.info\("Enabling rpc\.webhook \.\.\."\)\n            from freqtrade\.rpc\.webhook import Webhook\n\n            self\.registered_modules\.append\(Webhook\(self\._rpc, config\)\)',
     mqtt_patch,
-    content
+    content,
 )
 
 with open("freqtrade/rpc/rpc_manager.py", "w") as f:

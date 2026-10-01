@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/exchange/exchange_ws.py", "r") as f:
+
+with open("freqtrade/exchange/exchange_ws.py") as f:
     content = f.read()
 
 init_patch = """        self.klines_last_refresh: dict[PairWithTimeframe, float] = {}
@@ -21,7 +22,7 @@ init_patch = """        self.klines_last_refresh: dict[PairWithTimeframe, float]
 content = re.sub(
     r'        self\.klines_last_refresh: dict\[PairWithTimeframe, float\] = \{\}\n        self\.klines_last_request: dict\[PairWithTimeframe, float\] = \{\}\n        self\._thread = Thread\(name="ccxt_ws", target=self\._start_forever\)\n        self\._thread\.start\(\)\n        self\.__cleanup_called = False',
     init_patch,
-    content
+    content,
 )
 
 watchdog_func = """    def _ws_watchdog(self) -> None:
@@ -39,9 +40,9 @@ watchdog_func = """    def _ws_watchdog(self) -> None:
                 self._reset_ws()"""
 
 content = re.sub(
-    r'    def _start_forever\(self\) -> None:',
-    watchdog_func + '\n\n    def _start_forever(self) -> None:',
-    content
+    r"    def _start_forever\(self\) -> None:",
+    watchdog_func + "\n\n    def _start_forever(self) -> None:",
+    content,
 )
 
 tick_patch = """    async def _async_get_candle_history(
@@ -58,7 +59,7 @@ tick_patch = """    async def _async_get_candle_history(
 content = re.sub(
     r'    async def _async_get_candle_history\(\n        self, pair: str, timeframe: str, candle_type: CandleType\n    \) -> None:\n        if not self\._ccxt_object\.has\["watchOHLCV"\]:\n            return\n\n        while True:\n            try:',
     tick_patch,
-    content
+    content,
 )
 
 with open("freqtrade/exchange/exchange_ws.py", "w") as f:

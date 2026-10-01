@@ -541,9 +541,103 @@
       font-weight: bold;
     }
 
-  </style>
+
+    .sysinfo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--bg-glass-border);
+      border-radius: 8px;
+      padding: 0.8rem;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .stat-box:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--accent-2);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      pointer-events: all;
+    }
+
+    .theme-switcher {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: 1rem;
+    }
+    .theme-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-glass-border);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .theme-btn:hover {
+      transform: scale(1.2);
+    }
+    .theme-neon { background: #ff2a85; }
+    .theme-cyber { background: #00f0ff; }
+    .theme-matrix { background: #00ff00; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-base);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-glass);
+      border-radius: 5px;
+      border: 1px solid var(--accent-1);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-1);
+      box-shadow: 0 0 10px var(--accent-1);
+    }
+
+    /* Enhanced Glows */
+    .card.glass:hover {
+        box-shadow: 0 8px 32px 0 rgba(255, 42, 133, 0.2);
+        border: 1px solid rgba(255, 42, 133, 0.4);
+    }
+    .card.glass.alt:hover {
+        box-shadow: 0 8px 32px 0 rgba(0, 240, 255, 0.2);
+        border: 1px solid rgba(0, 240, 255, 0.4);
+    }
+    .btn-primary:hover {
+        box-shadow: 0 0 25px var(--accent-2);
+        transform: translateY(-2px);
+    }
+</style>
 </head>
 <body>
+  <canvas id="particle-canvas"></canvas>
   <noscript>
     <div class="noscr" role="alert">
       ⚠️ JavaScript Required: Please enable JavaScript to copy commands and access the dashboard.
@@ -570,7 +664,14 @@
       </div>
       <nav>
         <a href="https://www.freqtrade.io/en/latest/" target="_blank" rel="noopener">Docs <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
+
         <a href="https://github.com/freqtrade/freqtrade" target="_blank" rel="noopener">GitHub <svg class="external-icon" viewBox="0 0 24 24"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" /></svg></a>
+        <div class="theme-switcher">
+          <button class="theme-btn theme-neon" onclick="setTheme('#ff2a85', '#8a2be2')" aria-label="Neon Theme"></button>
+          <button class="theme-btn theme-cyber" onclick="setTheme('#00f0ff', '#8a2be2')" aria-label="Cyber Theme"></button>
+          <button class="theme-btn theme-matrix" onclick="setTheme('#00ff00', '#004400')" aria-label="Matrix Theme"></button>
+        </div>
+
       </nav>
     </div>
   </header>
@@ -598,6 +699,18 @@
         <div style="margin-top: auto; padding: 1rem; background: rgba(0,240,255,0.05); border-radius: 12px; border: 1px dashed var(--accent-2);">
           <span style="display:block; color:var(--accent-2); font-weight:700; margin-bottom:5px;">System Ready</span>
           <span style="font-size:0.9rem; color:var(--text-muted);">Awaiting frontend assets compilation and deployment.</span>
+        </div>
+      </div>
+
+
+      <div class="card glass">
+        <h3>📊 System Resources</h3>
+        <p>Live metrics from the Crypto P core server.</p>
+        <div class="sysinfo-grid" id="sysinfo-container">
+          <div class="stat-box"><div class="stat-value" id="stat-cpu">--%</div><div class="stat-label">CPU</div></div>
+          <div class="stat-box"><div class="stat-value" id="stat-ram">--%</div><div class="stat-label">Memory</div></div>
+          <div class="stat-box"><div class="stat-value" id="stat-up">--</div><div class="stat-label">Uptime</div></div>
+          <div class="stat-box"><div class="stat-value" id="stat-ver">--</div><div class="stat-label">Freqtrade Version</div></div>
         </div>
       </div>
 
@@ -759,6 +872,36 @@
 
     document.getElementById('refresh-btn').addEventListener('click', () => checkStatus(true));
 
+    async function fetchSysInfo() {
+      try {
+        const res = await fetch('/api/v1/sysinfo');
+        if (res.ok) {
+          const data = await res.json();
+          const cpuAvg = data.cpu_pct.reduce((a, b) => a + b, 0) / data.cpu_pct.length;
+          document.getElementById('stat-cpu').innerText = cpuAvg.toFixed(1) + '%';
+          document.getElementById('stat-ram').innerText = data.ram_pct.toFixed(1) + '%';
+
+          let up = data.uptime_seconds;
+          let upStr = '--';
+          if (up) {
+             const d = Math.floor(up / 86400);
+             const h = Math.floor((up % 86400) / 3600);
+             const m = Math.floor((up % 3600) / 60);
+             upStr = d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`;
+          }
+          document.getElementById('stat-up').innerText = upStr;
+          document.getElementById('stat-ver').innerText = data.freqtrade_version || '--';
+        }
+      } catch(e) {
+        // fail silently
+      }
+    }
+
+    // Initial fetch and interval
+    fetchSysInfo();
+    setInterval(fetchSysInfo, 5000);
+
+
     let checkInterval = setInterval(async () => {
       const installed = await checkStatus();
       if (installed) {
@@ -768,6 +911,127 @@
         setTimeout(() => location.reload(), 2000);
       }
     }, 5000);
-  </script>
+
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height, particles;
+
+    function initCanvas() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        particles = [];
+        for (let i = 0; i < 80; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: (Math.random() - 0.5) * 1.5,
+                radius: Math.random() * 2 + 1
+            });
+        }
+    }
+
+    let mouse = { x: null, y: null };
+    window.addEventListener('mousemove', e => {
+        mouse.x = e.x;
+        mouse.y = e.y;
+    });
+
+    window.addEventListener('resize', initCanvas);
+
+    function drawParticles() {
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.5)';
+        ctx.strokeStyle = 'rgba(255, 42, 133, 0.2)';
+
+        for (let i = 0; i < particles.length; i++) {
+            let p = particles[i];
+
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < 0 || p.x > width) p.vx = -p.vx;
+            if (p.y < 0 || p.y > height) p.vy = -p.vy;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            for (let j = i + 1; j < particles.length; j++) {
+                let p2 = particles[j];
+                let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                if (dist < 120) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+
+            if (mouse.x && mouse.y) {
+                let mouseDist = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                if (mouseDist < 150) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(mouse.x, mouse.y);
+                    ctx.strokeStyle = `rgba(0, 240, 255, ${1 - mouseDist/150})`;
+                    ctx.stroke();
+                    ctx.strokeStyle = 'rgba(255, 42, 133, 0.2)';
+                }
+            }
+        }
+        requestAnimationFrame(drawParticles);
+    }
+
+    initCanvas();
+    drawParticles();
+
+
+    function setTheme(accent1, accent3) {
+      document.documentElement.style.setProperty('--accent-1', accent1);
+      document.documentElement.style.setProperty('--accent-3', accent3);
+      if(accent1 === '#00ff00') {
+         document.documentElement.style.setProperty('--accent-2', '#aaff00');
+      } else if (accent1 === '#00f0ff') {
+         document.documentElement.style.setProperty('--accent-2', '#0088ff');
+      } else {
+         document.documentElement.style.setProperty('--accent-2', '#00f0ff');
+      }
+    }
+
+
+    function typeWriter(element, text, speed, callback) {
+      let i = 0;
+      element.innerHTML = '';
+      function type() {
+        if (i < text.length) {
+          element.innerHTML += text.charAt(i);
+          i++;
+          setTimeout(type, speed);
+        } else if (callback) {
+          callback();
+        }
+      }
+      type();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const cmd1 = document.getElementById('cmd-native');
+      const cmd2 = document.getElementById('cmd-docker');
+      const text1 = cmd1.innerText;
+      const text2 = cmd2.innerText;
+
+      cmd1.innerText = '';
+      cmd2.innerText = '';
+
+      setTimeout(() => {
+          typeWriter(cmd1, text1, 30, () => {
+              typeWriter(cmd2, text2, 30);
+          });
+      }, 500);
+    });
+
+</script>
 </body>
 </html>

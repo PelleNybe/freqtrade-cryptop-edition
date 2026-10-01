@@ -1,6 +1,4 @@
-import re
-
-with open('freqtrade/freqai/base_models/BasePyTorchModel.py', 'r') as f:
+with open("freqtrade/freqai/base_models/BasePyTorchModel.py") as f:
     content = f.read()
 
 # Add initialization of FederatedAveragingDaemon in __init__
@@ -11,7 +9,9 @@ init_patch = """        self.window_size = self.freqai_info.get("conv_width", 1)
         self.node_id = self.config.get("bot_name", "freqai_node_" + str(id(self)))
 """
 
-content = content.replace('        self.window_size = self.freqai_info.get("conv_width", 1)', init_patch)
+content = content.replace(
+    '        self.window_size = self.freqai_info.get("conv_width", 1)', init_patch
+)
 
-with open('freqtrade/freqai/base_models/BasePyTorchModel.py', 'w') as f:
+with open("freqtrade/freqai/base_models/BasePyTorchModel.py", "w") as f:
     f.write(content)

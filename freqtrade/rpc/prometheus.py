@@ -63,12 +63,12 @@ class PrometheusExporter(RPC):
                 # Update Hardware Metrics
                 try:
                     from pathlib import Path
+
                     with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
                         temp = float(f.read()) / 1000.0
                         self.cpu_temp_gauge.set(temp)
                 except Exception as e:
                     logger.debug(f"Thermal check failed: {e}")
-
 
                 self.ram_usage_gauge.set(psutil.virtual_memory().percent)
 

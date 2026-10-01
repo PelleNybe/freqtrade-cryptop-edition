@@ -1,12 +1,12 @@
-with open('freqtrade/persistence/models.py', 'r') as f:
+with open("freqtrade/persistence/models.py") as f:
     lines = f.readlines()
 
 new_lines = []
 imports = []
 for line in lines:
-    if line.startswith('from sqlalchemy import create_engine'):
+    if line.startswith("from sqlalchemy import create_engine"):
         imports.append(line)
-    elif line.startswith('from sqlalchemy.engine import Engine'):
+    elif line.startswith("from sqlalchemy.engine import Engine"):
         imports.append(line)
     else:
         new_lines.append(line)
@@ -25,5 +25,5 @@ for i, line in enumerate(new_lines):
     else:
         final_lines.append(line)
 
-with open('freqtrade/persistence/models.py', 'w') as f:
+with open("freqtrade/persistence/models.py", "w") as f:
     f.writelines(final_lines)
