@@ -1,10 +1,11 @@
-import re
-
-with open('freqtrade/data/dataprovider.py', 'r') as f:
+with open("freqtrade/data/dataprovider.py") as f:
     content = f.read()
 
 # Add import
-content = content.replace("from freqtrade.exchange import Exchange", "from freqtrade.exchange import Exchange\nfrom freqtrade.data.sentiment import NLPSentimentDaemon")
+content = content.replace(
+    "from freqtrade.exchange import Exchange",
+    "from freqtrade.exchange import Exchange\nfrom freqtrade.data.sentiment import NLPSentimentDaemon",
+)
 
 # Add init logic
 init_patch = """        self.__rpc = rpc
@@ -13,7 +14,9 @@ init_patch = """        self.__rpc = rpc
         if self._sentiment_daemon.enabled:
             self._sentiment_daemon.start()"""
 
-content = content.replace("        self.__rpc = rpc\n        self._msg_queue: deque = deque()", init_patch)
+content = content.replace(
+    "        self.__rpc = rpc\n        self._msg_queue: deque = deque()", init_patch
+)
 
 # Add methods
 methods_patch = '''
@@ -39,5 +42,5 @@ methods_patch = '''
 
 content += methods_patch
 
-with open('freqtrade/data/dataprovider.py', 'w') as f:
+with open("freqtrade/data/dataprovider.py", "w") as f:
     f.write(content)

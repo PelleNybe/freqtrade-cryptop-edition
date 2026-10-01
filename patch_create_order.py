@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/exchange/exchange.py", "r") as f:
+
+with open("freqtrade/exchange/exchange.py") as f:
     content = f.read()
 
 # Add logic to support stop_loss/take_profit params in create_order to allow edge-safe native trailing stops / OCOs
@@ -38,7 +39,7 @@ order_patch = """    def create_order(
 content = re.sub(
     r'    def create_order\(\n        self,\n        \*,\n        pair: str,\n        ordertype: str,\n        side: BuySell,\n        amount: float,\n        rate: float,\n        leverage: float,\n        time_in_force: str = "GTC",\n        reduceOnly: bool = False,\n        initial_order: bool = True,\n    \) -> CcxtOrder:\n        if self\._config\["dry_run"\]:\n            dry_order = self\.create_dry_run_order\(\n                pair, ordertype, side, amount, self\.price_to_precision\(pair, rate\), leverage\n            \)\n            return dry_order\n\n        params = self\._get_params\(side, ordertype, leverage, reduceOnly, time_in_force\)',
     order_patch,
-    content
+    content,
 )
 
 with open("freqtrade/exchange/exchange.py", "w") as f:

@@ -1,6 +1,4 @@
-import re
-
-with open("freqtrade/rpc/api_server/api_trading.py", "r") as f:
+with open("freqtrade/rpc/api_server/api_trading.py") as f:
     content = f.read()
 
 import_patch = """import logging

@@ -21,6 +21,7 @@ __DEFAULT_JWT = "somethingRandomSomethingRandom123"
 router_login = APIRouter()
 # Rate limiter: 1000 IPs, 60 seconds block
 login_attempts_cache: TTLCache = TTLCache(maxsize=10000, ttl=60)
+login_lockout_cache: TTLCache = TTLCache(maxsize=10000, ttl=900)  # 15 minutes lockout
 
 
 def verify_auth(api_config, username: str, password: str):

@@ -1,6 +1,4 @@
-import re
-
-with open('tests/freqai/test_thermal.py', 'r') as f:
+with open("tests/freqai/test_thermal.py") as f:
     content = f.read()
 
 patch_code = """class DummyFreqAI(IFreqaiModel):
@@ -15,13 +13,16 @@ patch_code = """class DummyFreqAI(IFreqaiModel):
     def fit(self): pass
 """
 
-content = content.replace("""class DummyFreqAI(IFreqaiModel):
+content = content.replace(
+    """class DummyFreqAI(IFreqaiModel):
     def __init__(self, **kwargs):
         # minimal mock init
         self.freqai_info = {"activate_tensorboard": False}
         self.config = {"timeframe": "5m", "exchange": {"pair_whitelist": []}}
         self.ft_params = {}
-        self._thermal_history = deque(maxlen=30)""", patch_code)
+        self._thermal_history = deque(maxlen=30)""",
+    patch_code,
+)
 
-with open('tests/freqai/test_thermal.py', 'w') as f:
+with open("tests/freqai/test_thermal.py", "w") as f:
     f.write(content)

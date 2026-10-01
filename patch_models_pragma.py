@@ -1,12 +1,13 @@
 import re
 
-with open("freqtrade/persistence/models.py", "r") as f:
+
+with open("freqtrade/persistence/models.py") as f:
     content = f.read()
 
 import_patch = """from sqlalchemy import create_engine, inspect, event
 from sqlalchemy.engine import Engine"""
 
-content = re.sub(r'from sqlalchemy import create_engine, inspect', import_patch, content)
+content = re.sub(r"from sqlalchemy import create_engine, inspect", import_patch, content)
 
 engine_patch = """    try:
         engine = create_engine(db_url, future=True, **kwargs)
@@ -24,9 +25,9 @@ engine_patch = """    try:
     except NoSuchModuleError:"""
 
 content = re.sub(
-    r'    try:\n        engine = create_engine\(db_url, future=True, \*\*kwargs\)\n    except NoSuchModuleError:',
+    r"    try:\n        engine = create_engine\(db_url, future=True, \*\*kwargs\)\n    except NoSuchModuleError:",
     engine_patch,
-    content
+    content,
 )
 
 with open("freqtrade/persistence/models.py", "w") as f:

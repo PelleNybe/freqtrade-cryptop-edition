@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/freqai/freqai_interface.py", "r") as f:
+
+with open("freqtrade/freqai/freqai_interface.py") as f:
     content = f.read()
 
 train_patch = """
@@ -43,10 +44,10 @@ train_patch = """
                 continue"""
 
 content = re.sub(
-    r'    def start_scanning\(self, \*args, \*\*kwargs\) -> None:\n.*?if not self\.train_queue:\n                continue',
+    r"    def start_scanning\(self, \*args, \*\*kwargs\) -> None:\n.*?if not self\.train_queue:\n                continue",
     train_patch,
     content,
-    flags=re.DOTALL
+    flags=re.DOTALL,
 )
 
 with open("freqtrade/freqai/freqai_interface.py", "w") as f:

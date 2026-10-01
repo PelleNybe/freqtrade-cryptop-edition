@@ -1,7 +1,7 @@
 import logging
 import secrets
 
-from cachetools import TTLCache, cached
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 
@@ -206,7 +206,7 @@ def monthly(
     tags=["Trading-info"],
     dependencies=[Depends(RateLimiter(max_calls=20, time_seconds=60))],
 )
-@cached(cache=api_response_cache)
+# @cached(cache=api_response_cache)
 def status(rpc: RPC = Depends(get_rpc)):
     try:
         return rpc._rpc_trade_status()

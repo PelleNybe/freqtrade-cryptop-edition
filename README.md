@@ -89,6 +89,18 @@ This elevated version includes exclusive features designed by Crypto P to enhanc
 
 - **Enhanced Branding & User Experience**: Step into the "Magical Server" with a unique, vibrant theme and the "Crypto P" persona guiding you.
 - **Interactive Setup**: The fallback UI page includes copy-paste commands with toast notifications and confetti effects to make installation easier and more fun.
+- **Visual Improvements**:
+  - Canvas-based interactive particle network background.
+  - Interactive Theme Switcher (Neon, Cyber, Matrix).
+  - Enhanced hover glows and custom scrollbars.
+  - Live system resource statistics dashboard.
+  - Simulated terminal typing animation.
+- **Technical Improvements**:
+  - Detailed `/sysinfo` endpoint exposing CPU, RAM, Uptime, and Version details.
+  - Deep API Response Caching on heavy data endpoints (using a custom `@cached_response` decorator).
+  - Advanced Auth Security with a strict 15-minute lockout policy against brute force attacks.
+  - Active Database Health-checking in the `/ping` endpoint.
+  - Aggressive and safe DataFrame memory downcasting optimizations in data processing.
 - **Bitget Futures Improvements**:
     - **Cross Margin Support**: Enabled for Bitget Futures, allowing for more flexible risk management.
     - **Custom Liquidation Logic**: Enhanced dry-run calculations to better simulate real-world liquidation scenarios on Bitget.

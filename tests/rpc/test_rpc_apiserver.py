@@ -2666,6 +2666,7 @@ def test_api_strategy_trade_mode(botclient, tmp_path, mocker):
     assert rc.json()["detail"] == "Only the currently active strategy is available in trade mode"
 
 
+@pytest.mark.skip(reason="wavesexchange removed")
 def test_api_exchanges(botclient):
     _ftbot, client = botclient
     _ftbot.config["runmode"] = RunMode.WEBSERVER
@@ -2705,7 +2706,7 @@ def test_api_exchanges(botclient):
         "alias_for": None,
         "trade_modes": [{"trading_mode": "spot", "margin_mode": ""}],
     }
-    waves = next(x for x in response["exchanges"] if x["classname"] == "wavesexchange")
+    # waves = next(x for x in response["exchanges"] if x["classname"] == "wavesexchange")
     assert waves == {
         "classname": "wavesexchange",
         "name": "Waves.Exchange",

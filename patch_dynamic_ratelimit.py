@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/exchange/exchange.py", "r") as f:
+
+with open("freqtrade/exchange/exchange.py") as f:
     content = f.read()
 
 # Add enableRateLimit to True if not explicitly overridden, and install a generic ccxt ratelimit patcher
@@ -26,7 +27,7 @@ patch = """    def _init_ccxt(
 content = re.sub(
     r'    def _init_ccxt\(\n        self, exchange_config: dict\[str, Any\], sync: bool, ccxt_kwargs: dict\[str, Any\]\n    \) -> ccxt\.Exchange:\n        """\n        Initialize ccxt with given config and return valid ccxt instance\.\n        """\n        # Find matching class for the given exchange name',
     patch,
-    content
+    content,
 )
 
 with open("freqtrade/exchange/exchange.py", "w") as f:

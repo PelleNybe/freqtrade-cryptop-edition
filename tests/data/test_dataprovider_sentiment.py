@@ -1,6 +1,5 @@
-import pytest
-from unittest.mock import MagicMock
 from freqtrade.data.dataprovider import DataProvider
+
 
 def test_dataprovider_sentiment_fallback():
     config = {}
@@ -9,6 +8,7 @@ def test_dataprovider_sentiment_fallback():
     # Defaults to 0.0 when not enabled
     assert dp.get_global_sentiment() == 0.0
     assert dp.get_pair_sentiment("BTC/USDT") == 0.0
+
 
 def test_dataprovider_sentiment_mocked():
     config = {
@@ -26,4 +26,4 @@ def test_dataprovider_sentiment_mocked():
 
     assert dp.get_global_sentiment() == 0.5
     assert dp.get_pair_sentiment("BTC/USDT") == 0.7
-    assert dp.get_pair_sentiment("ETH/USDT") == 0.5 # fallbacks to global
+    assert dp.get_pair_sentiment("ETH/USDT") == 0.5  # fallbacks to global

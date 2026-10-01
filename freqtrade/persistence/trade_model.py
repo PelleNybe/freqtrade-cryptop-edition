@@ -1,8 +1,7 @@
-
-
 """
 This module contains the class to persist trades into SQLite
 """
+
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
@@ -2162,8 +2161,6 @@ class Trade(ModelBase, LocalTrade):
             .filter(*trade_filter)
         ).scalar_one()
         return trading_volume or 0.0
-
-
 
 
 @contextmanager

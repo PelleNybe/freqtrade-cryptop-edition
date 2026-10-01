@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 import torch
 
-from freqtrade.freqai.freqai_interface import IFreqaiModel
 from freqtrade.freqai.federated_learning import FederatedAveragingDaemon
+from freqtrade.freqai.freqai_interface import IFreqaiModel
 from freqtrade.freqai.torch.PyTorchDataConvertor import PyTorchDataConvertor
 
 
@@ -33,7 +33,6 @@ class BasePyTorchModel(IFreqaiModel, ABC):
         # Initialize Federated Learning Swarm Daemon
         self.federated_daemon = FederatedAveragingDaemon(self.config)
         self.node_id = self.config.get("bot_name", "freqai_node_" + str(id(self)))
-
 
     @property
     @abstractmethod

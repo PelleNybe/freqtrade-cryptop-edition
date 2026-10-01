@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/optimize/hyperopt/hyperopt_optimizer.py", "r") as f:
+
+with open("freqtrade/optimize/hyperopt/hyperopt_optimizer.py") as f:
     content = f.read()
 
 import_patch = """import logging
@@ -16,9 +17,9 @@ import optuna
 from joblib import delayed, dump, load, wrap_non_picklable_objects"""
 
 content = re.sub(
-    r'import logging\nimport sys\nimport warnings\nfrom datetime import datetime\nfrom multiprocessing import Manager\nfrom pathlib import Path\nfrom typing import Any\n\nimport optuna\nfrom joblib import delayed, dump, load, wrap_non_picklable_objects',
+    r"import logging\nimport sys\nimport warnings\nfrom datetime import datetime\nfrom multiprocessing import Manager\nfrom pathlib import Path\nfrom typing import Any\n\nimport optuna\nfrom joblib import delayed, dump, load, wrap_non_picklable_objects",
     import_patch,
-    content
+    content,
 )
 
 study_patch = """        logger.info(f"Using optuna sampler {o_sampler}.")
@@ -42,7 +43,7 @@ study_patch = """        logger.info(f"Using optuna sampler {o_sampler}.")
 content = re.sub(
     r'        logger\.info\(f"Using optuna sampler \{o_sampler\}\."\)\n        return optuna\.create_study\(sampler=sampler, direction="minimize"\)',
     study_patch,
-    content
+    content,
 )
 
 with open("freqtrade/optimize/hyperopt/hyperopt_optimizer.py", "w") as f:

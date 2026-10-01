@@ -1,6 +1,4 @@
-import re
-
-with open('freqtrade/freqtradebot.py', 'r') as f:
+with open("freqtrade/freqtradebot.py") as f:
     content = f.read()
 
 # Add logic to stop sentiment daemon if running inside dataprovider
@@ -12,7 +10,7 @@ patch_code = """        logger.info("Cleaning up modules ...")
             self.dataprovider._sentiment_daemon.join(timeout=2.0)
 """
 
-content = content.replace("        logger.info(\"Cleaning up modules ...\")", patch_code)
+content = content.replace('        logger.info("Cleaning up modules ...")', patch_code)
 
-with open('freqtrade/freqtradebot.py', 'w') as f:
+with open("freqtrade/freqtradebot.py", "w") as f:
     f.write(content)

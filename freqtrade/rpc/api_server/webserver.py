@@ -317,8 +317,8 @@ class ApiServer(RPCHandler):
 
         app.add_exception_handler(RPCException, self.handle_rpc_exception)
         app.add_exception_handler(Exception, self.handle_generic_exception)
-        app.add_event_handler(event_type="startup", func=self._api_startup_event)
-        app.add_event_handler(event_type="shutdown", func=self._api_shutdown_event)
+        self.app.router.add_event_handler("startup", self._api_startup_event)
+        self.app.router.add_event_handler("shutdown", self._api_shutdown_event)
 
     async def _api_startup_event(self):
         """

@@ -1746,6 +1746,7 @@ class RPC:
     def _rpc_sysinfo() -> dict[str, Any]:
         try:
             from pathlib import Path
+
             with Path("/sys/class/thermal/thermal_zone0/temp").open() as f:
                 temp = float(f.read()) / 1000.0
         except Exception:
@@ -1759,12 +1760,27 @@ class RPC:
             disk_read = 0
             disk_write = 0
 
+        import platform
+
+        from freqtrade import __version__
+
+        uptime = 0
+        try:
+            import time
+
+            uptime = int(time.time() - psutil.boot_time())
+        except Exception as e:
+            logger.debug(f"Failed to get uptime: {e}")
+
         return {
             "cpu_pct": psutil.cpu_percent(interval=1, percpu=True),
             "ram_pct": psutil.virtual_memory().percent,
             "cpu_temp": temp,
             "disk_read_bytes": disk_read,
             "disk_write_bytes": disk_write,
+            "uptime_seconds": uptime,
+            "python_version": platform.python_version(),
+            "freqtrade_version": __version__,
         }
 
     def health(self) -> dict[str, str | int | None]:

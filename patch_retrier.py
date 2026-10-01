@@ -1,6 +1,7 @@
 import re
 
-with open("freqtrade/exchange/common.py", "r") as f:
+
+with open("freqtrade/exchange/common.py") as f:
     content = f.read()
 
 # Enhance calculate_backoff for better edge network resilience
@@ -17,7 +18,7 @@ backoff_patch = """def calculate_backoff(retrycount, max_retries):
 content = re.sub(
     r'def calculate_backoff\(retrycount, max_retries\):\n    """\n    Calculate backoff\n    """\n    return \(max_retries - retrycount\) \*\* 2 \+ 1',
     backoff_patch,
-    content
+    content,
 )
 
 with open("freqtrade/exchange/common.py", "w") as f:

@@ -38,9 +38,7 @@ class MQTT(RPC):
                 self.client.loop_start()
                 logger.info(f"Connected to MQTT broker at {host}:{port}")
             except ImportError:
-                logger.error(
-                    "paho-mqtt missing. Run `pip install paho-mqtt` to use MQTT."
-                )
+                logger.error("paho-mqtt missing. Run `pip install paho-mqtt` to use MQTT.")
                 self.enabled = False
             except Exception as e:
                 logger.error(f"Failed to initialize MQTT client: {e}")

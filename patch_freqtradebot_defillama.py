@@ -1,12 +1,13 @@
 import re
 
-with open("freqtrade/freqtradebot.py", "r") as f:
+
+with open("freqtrade/freqtradebot.py") as f:
     content = f.read()
 
 import_patch = """from freqtrade.data.dataprovider import DataProvider
 from freqtrade.data.defillama import risk_guard"""
 
-content = re.sub(r'from freqtrade\.data\.dataprovider import DataProvider', import_patch, content)
+content = re.sub(r"from freqtrade\.data\.dataprovider import DataProvider", import_patch, content)
 
 startup_patch = """    def startup(self) -> None:
         \"\"\"
@@ -21,7 +22,7 @@ startup_patch = """    def startup(self) -> None:
 content = re.sub(
     r'    def startup\(self\) -> None:\n        """\n        Called on startup and after reloading the bot - triggers notifications and\n        performs startup tasks\n        """\n        migrate_live_content\(self\.config, self\.exchange\)',
     startup_patch,
-    content
+    content,
 )
 
 cleanup_patch = """    def cleanup(self) -> None:
@@ -39,7 +40,7 @@ cleanup_patch = """    def cleanup(self) -> None:
 content = re.sub(
     r'    def cleanup\(self\) -> None:\n        """\n        Cleanup pending resources on an already stopped bot\n        :return: None\n        """\n        logger\.info\("Cleaning up modules \.\.\."\)\n        try:',
     cleanup_patch,
-    content
+    content,
 )
 
 with open("freqtrade/freqtradebot.py", "w") as f:
