@@ -50,8 +50,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: |
         # brew update
-        # TODO: Should be the brew upgrade
-        brew install libomp
+        brew upgrade libomp
 
     - name: Installation (python)
       run: |
