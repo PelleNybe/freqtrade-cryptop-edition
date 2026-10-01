@@ -426,3 +426,44 @@ def test_exchange__exchange_has_helper():
     }
     missing = _exchange_has_helper(e_mod, required)
     assert set(missing) == {"fetchOHLCV", "fetchMyTrades", "fetchOrder"}
+
+
+def test_validate_exchange(mocker):
+    from freqtrade.exchange.exchange_utils import validate_exchange
+
+    mocker.patch(
+        "freqtrade.exchange.exchange_utils.EXCHANGE_HAS_REQUIRED", {"fetchOHLCV": ["fetchOHLCV"]}
+    )
+    mocker.patch("freqtrade.exchange.exchange_utils.EXCHANGE_HAS_OPTIONAL", {})
+    mocker.patch("freqtrade.exchange.exchange_utils.EXCHANGE_HAS_OPTIONAL_FUTURES", {})
+
+    # 1. Exchange is found in ccxt.pro
+    mock_ccxt_pro = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.pro")
+    mock_ex_mod = mocker.MagicMock()
+    mock_ex_mod.has = {"fetchOHLCV": True}
+    mock_ex_mod.name = "MockExchange"
+    # setup the return value of ccxt.pro.mockexchange()
+    mock_ccxt_pro.mockexchange = mocker.MagicMock(return_value=mock_ex_mod)
+
+    valid, _, _, ex = validate_exchange("mockexchange")
+    assert valid is True
+    assert ex == mock_ex_mod
+
+    # 2. Exchange is not in ccxt.pro, throws AttributeError, found in ccxt.async_support
+    mock_ccxt_pro = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.pro", spec=[])
+    # mock_ccxt_pro does not have mockexchange2 attribute, raising AttributeError
+    mock_ccxt_async = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.async_support")
+    mock_ex_mod2 = mocker.MagicMock()
+    mock_ex_mod2.has = {"fetchOHLCV": True}
+    mock_ccxt_async.mockexchange2 = mocker.MagicMock(return_value=mock_ex_mod2)
+
+    valid, _, _, ex = validate_exchange("mockexchange2")
+    assert valid is True
+    assert ex == mock_ex_mod2
+
+    # 3. Exchange not found in both
+    mock_ccxt_pro = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.pro", spec=[])
+    mock_ccxt_async = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.async_support", spec=[])
+
+    with pytest.raises(AttributeError):
+        validate_exchange("mockexchange3")
