@@ -241,3 +241,14 @@ def test_json_to_dataframe_jsondecodeerror(mocker, ohlcv_history):
     assert len(ohlcv_history) == len(dataframe)
 
     assert_frame_equal(ohlcv_history, dataframe, check_dtype=False)
+
+
+def test_json_to_dataframe_invalid_json():
+    import pytest
+
+    from freqtrade.misc import json_to_dataframe
+
+    # Pass an invalid JSON string which should raise rapidjson.JSONDecodeError,
+    # and then fall back to pd.read_json which will raise ValueError
+    with pytest.raises(ValueError, match="Expected object or value"):
+        json_to_dataframe("}invalid json{")
