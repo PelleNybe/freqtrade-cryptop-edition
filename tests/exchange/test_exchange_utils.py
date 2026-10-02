@@ -461,6 +461,18 @@ def test_validate_exchange(mocker):
     assert valid is True
     assert ex == mock_ex_mod2
 
+    # 4. Exchange is found but has no `has` attribute or `has` is empty/False
+    mock_ccxt_pro = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.pro", spec=[])
+    mock_ccxt_async = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.async_support")
+    mock_ex_mod4 = mocker.MagicMock()
+    # Mock property `has` to be False
+    type(mock_ex_mod4).has = mocker.PropertyMock(return_value=False)
+    mock_ccxt_async.mockexchange4 = mocker.MagicMock(return_value=mock_ex_mod4)
+
+    valid, _, _, ex = validate_exchange("mockexchange4")
+    assert valid is False
+    assert ex is None
+
     # 3. Exchange not found in both
     mock_ccxt_pro = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.pro", spec=[])
     mock_ccxt_async = mocker.patch("freqtrade.exchange.exchange_utils.ccxt.async_support", spec=[])
