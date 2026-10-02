@@ -78,7 +78,7 @@ def start_backtesting_show(args: dict[str, Any]) -> None:
     show_sorted_pairlist(config, results)
 
 
-def start_hyperopt(args: dict[str, Any]) -> Any:
+def start_hyperopt(args: dict[str, Any]) -> None:
     """
     Start hyperopt script
     :param args: Cli args from Arguments()
@@ -118,7 +118,9 @@ def start_hyperopt(args: dict[str, Any]) -> Any:
             "or on separate machines."
         )
         logger.info("Quitting now.")
-        return False
+        # TODO: return False here in order to help freqtrade to exit
+        # with non-zero exit code...
+        # Same in Edge and Backtesting start() functions.
 
 
 def start_edge(args: dict[str, Any]) -> None:

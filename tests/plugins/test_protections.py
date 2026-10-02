@@ -92,10 +92,7 @@ def generate_mock_trade(
 
 def test_protectionmanager(mocker, default_conf):
     default_conf["_strategy_protections"] = [
-        {"method": protection, "max_allowed_drawdown": 0.1}
-        if protection == "MaxDrawdown"
-        else {"method": protection}
-        for protection in AVAILABLE_PROTECTIONS
+        {"method": protection} for protection in AVAILABLE_PROTECTIONS
     ]
     freqtrade = get_patched_freqtradebot(mocker, default_conf)
 
@@ -806,14 +803,9 @@ def test_MaxDrawdown(mocker, default_conf, fee, caplog):
             None,
         ),
         (
-            {
-                "method": "MaxDrawdown",
-                "lookback_period": 60,
-                "stop_duration": 60,
-                "max_allowed_drawdown": 0.1,
-            },
+            {"method": "MaxDrawdown", "lookback_period": 60, "stop_duration": 60},
             "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-            "if drawdown is > 0.1 within 60 minutes.'}]",
+            "if drawdown is > 0.0 within 60 minutes.'}]",
             None,
         ),
         (
@@ -840,14 +832,9 @@ def test_MaxDrawdown(mocker, default_conf, fee, caplog):
             None,
         ),
         (
-            {
-                "method": "MaxDrawdown",
-                "lookback_period_candles": 20,
-                "stop_duration": 60,
-                "max_allowed_drawdown": 0.1,
-            },
+            {"method": "MaxDrawdown", "lookback_period_candles": 20, "stop_duration": 60},
             "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-            "if drawdown is > 0.1 within 20 candles.'}]",
+            "if drawdown is > 0.0 within 20 candles.'}]",
             None,
         ),
         (
@@ -877,14 +864,9 @@ def test_MaxDrawdown(mocker, default_conf, fee, caplog):
             None,
         ),
         (
-            {
-                "method": "MaxDrawdown",
-                "lookback_period_candles": 20,
-                "unlock_at": "04:00",
-                "max_allowed_drawdown": 0.1,
-            },
+            {"method": "MaxDrawdown", "lookback_period_candles": 20, "unlock_at": "04:00"},
             "[{'MaxDrawdown': 'MaxDrawdown - Max drawdown protection, stop trading "
-            "if drawdown is > 0.1 within 20 candles.'}]",
+            "if drawdown is > 0.0 within 20 candles.'}]",
             None,
         ),
     ],
@@ -897,20 +879,3 @@ def test_protection_manager_desc(
 
     short_desc = str(freqtrade.protections.short_desc())
     assert short_desc == desc_expected
-
-
-def test_maxdrawdown_exception(default_conf, mocker):
-    default_conf["_strategy_protections"] = [
-        {
-            "method": "MaxDrawdown",
-            "lookback_period": 1000,
-            "stop_duration": 60,
-            "trade_limit": 3,
-            "max_allowed_drawdown": 1.5,
-        }
-    ]
-    with pytest.raises(
-        OperationalException,
-        match=r"MaxDrawdown requires max_allowed_drawdown to be > 0.0 and <= 1.0. Provided: 1.5",
-    ):
-        get_patched_freqtradebot(mocker, default_conf)

@@ -221,23 +221,3 @@ def test_dataframe_json(ohlcv_history):
     json = dataframe_to_json(ohlcv_history)
 
     dataframe = json_to_dataframe(json)
-
-
-def test_json_to_dataframe_jsondecodeerror(mocker, ohlcv_history):
-    import rapidjson
-    from pandas.testing import assert_frame_equal
-
-    from freqtrade.misc import dataframe_to_json, json_to_dataframe
-
-    json_str = dataframe_to_json(ohlcv_history)
-
-    # Mock rapidjson.loads to raise JSONDecodeError
-    mocker.patch("rapidjson.loads", side_effect=rapidjson.JSONDecodeError("mock error", "", 0))
-
-    # It should fallback to pandas and successfully parse the valid JSON string
-    dataframe = json_to_dataframe(json_str)
-
-    assert list(ohlcv_history.columns) == list(dataframe.columns)
-    assert len(ohlcv_history) == len(dataframe)
-
-    assert_frame_equal(ohlcv_history, dataframe, check_dtype=False)

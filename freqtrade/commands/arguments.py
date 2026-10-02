@@ -385,7 +385,7 @@ class Arguments:
         self._build_args(optionlist=ARGS_MAIN, parser=self.parser)
 
         from freqtrade.commands import (
-            analyze_commands,
+            start_analysis_entries_exits,
             start_backtesting,
             start_backtesting_show,
             start_convert_data,
@@ -530,7 +530,7 @@ class Arguments:
         analysis_cmd = subparsers.add_parser(
             "backtesting-analysis", help="Backtest Analysis module.", parents=[_common_parser]
         )
-        analysis_cmd.set_defaults(func=analyze_commands.start_analysis_entries_exits)
+        analysis_cmd.set_defaults(func=start_analysis_entries_exits)
         self._build_args(optionlist=ARGS_ANALYZE_ENTRIES_EXITS, parser=analysis_cmd)
 
         # Add edge subcommand

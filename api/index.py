@@ -10,8 +10,6 @@ from fastapi import FastAPI
 # Add project root to python path to allow importing freqtrade
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-app = FastAPI()
-
 try:
     from freqtrade.configuration import Configuration
     from freqtrade.enums.runmode import RunMode
@@ -45,7 +43,7 @@ try:
     api_server = ApiServer(config, standalone=True)
 
     # Expose the FastAPI app
-    app.mount("/", api_server.app)
+    app = api_server.app
 
     # Try to cleanup temporary file
     try:
@@ -57,6 +55,7 @@ except Exception as err:
     err_msg = str(err)
     logger.exception(f"Error starting Freqtrade API Server for Vercel: {err}")
     # Provide a fallback app to prevent Vercel 500 crashes completely
+    app = FastAPI()
 
     @app.get("/")
     def read_root():

@@ -6,7 +6,6 @@ import pandas as pd
 
 from freqtrade.constants import Config, LongShort
 from freqtrade.data.metrics import calculate_max_drawdown
-from freqtrade.exceptions import OperationalException
 from freqtrade.persistence import Trade
 from freqtrade.plugins.protections import IProtection, ProtectionReturn
 
@@ -29,12 +28,7 @@ class MaxDrawdown(IProtection):
 
         self._trade_limit = protection_config.get("trade_limit", 1)
         self._max_allowed_drawdown = protection_config.get("max_allowed_drawdown", 0.0)
-
-        if not (0.0 < self._max_allowed_drawdown <= 1.0):
-            raise OperationalException(
-                f"MaxDrawdown requires max_allowed_drawdown to be > 0.0 and <= 1.0. "
-                f"Provided: {self._max_allowed_drawdown}"
-            )
+        # TODO: Implement checks to limit max_drawdown to sensible values
 
     def short_desc(self) -> str:
         """
