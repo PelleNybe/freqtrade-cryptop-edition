@@ -12,13 +12,13 @@ from starlette.responses import JSONResponse
 from freqtrade.configuration import running_in_docker
 from freqtrade.constants import Config
 from freqtrade.exceptions import OperationalException
+from freqtrade.rpc import RPCException, RPCHandler
 from freqtrade.rpc.api_server.uvicorn_threaded import UvicornServer
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
 from freqtrade.rpc.api_server.ws.message_stream import MessageStream
 from freqtrade.rpc.rpc import RPC
-from freqtrade.util import FtTTLCache
-from freqtrade.rpc import RPCException, RPCHandler
 from freqtrade.rpc.rpc_types import RPCSendMsg
+from freqtrade.util import FtTTLCache
 
 
 logger = logging.getLogger(__name__)
