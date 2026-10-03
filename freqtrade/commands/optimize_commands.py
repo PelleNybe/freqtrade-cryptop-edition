@@ -42,7 +42,7 @@ def setup_optimize_configuration(args: dict[str, Any], method: RunMode) -> dict[
     return config
 
 
-def start_backtesting(args: dict[str, Any]) -> None:
+def start_backtesting(args: dict[str, Any]) -> Any:
     """
     Start Backtesting script
     :param args: Cli args from Arguments()
@@ -59,6 +59,7 @@ def start_backtesting(args: dict[str, Any]) -> None:
     # Initialize backtesting object
     backtesting = Backtesting(config)
     backtesting.start()
+    return False
 
 
 def start_backtesting_show(args: dict[str, Any]) -> None:
@@ -121,7 +122,7 @@ def start_hyperopt(args: dict[str, Any]) -> Any:
         return False
 
 
-def start_edge(args: dict[str, Any]) -> None:
+def start_edge(args: dict[str, Any]) -> Any:
     """
     Start Edge script
     :param args: Cli args from Arguments()
@@ -131,6 +132,7 @@ def start_edge(args: dict[str, Any]) -> None:
         "The Edge module has been deprecated in 2023.9 and removed in 2025.6. "
         "All functionalities of edge have been removed."
     )
+    return False
 
 
 def start_lookahead_analysis(args: dict[str, Any]) -> None:
