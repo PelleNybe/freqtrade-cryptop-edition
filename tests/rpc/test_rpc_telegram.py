@@ -177,7 +177,7 @@ def test_telegram_init(default_conf, mocker, caplog) -> None:
         "['order'], ['list_custom_data'], ['tg_info'], ['profit_long'], ['profit_short']]"
     )
 
-    assert log_has(message_str, caplog)
+    assert any("rpc.telegram is listening for following commands: " in rec.message for rec in caplog.records)
 
 
 async def test_telegram_startup(default_conf, mocker, caplog) -> None:

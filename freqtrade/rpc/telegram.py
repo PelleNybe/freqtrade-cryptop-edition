@@ -156,6 +156,123 @@ class Telegram(RPCHandler):
         self._init_keyboard()
         self._start_thread()
 
+    def _get_commands(self) -> list[tuple[list[str], Callable, str, str | None]]:
+        """
+        Returns a list of tuples containing:
+        (commands_list, handler_function, help_text, category)
+        """
+        return [
+            # Bot Control
+            (["start"], self._start, "`/start`      — Starts the trader", "Bot Control"),
+            (["stop"], self._stop, "`/stop`       — Stops the trader", "Bot Control"),
+            (
+                ["stopbuy", "stopentry", "pause"],
+                self._pause,
+                "`/pause`      — Pause new entries (keeps open trades)",
+                "Bot Control",
+            ),
+            (
+                ["forcesell", "forceexit", "fx"],
+                self._force_exit,
+                "`/forceexit <id>|all` — Instantly exits trade(s)",
+                "Bot Control",
+            ),
+            (
+                ["forcebuy", "forcelong"],
+                partial(self._force_enter, order_side=SignalDirection.LONG),
+                "",
+                "Bot Control",
+            ),
+            (
+                ["forceshort"],
+                partial(self._force_enter, order_side=SignalDirection.SHORT),
+                "",
+                "Bot Control",
+            ),
+            (
+                ["delete"],
+                self._delete_trade,
+                "`/delete <id>` — Delete trade from DB (no exchange action)",
+                "Bot Control",
+            ),
+            (
+                ["reload_trade"],
+                self._reload_trade_from_exchange,
+                "`/reload_trade <id>` — Reload trade from exchange",
+                "Bot Control",
+            ),
+            (
+                ["coo", "cancel_open_order"],
+                self._cancel_open_order,
+                "`/cancel_open_order <id>` — Cancel open orders",
+                "Bot Control",
+            ),
+            # Statistics
+            (["status"], self._status, "`/status <id>|[table]` — List open trades", "Statistics"),
+            (
+                ["profit"],
+                self._profit,
+                "`/profit [<n>]` — Cumulative profit (last n days)",
+                "Statistics",
+            ),
+            (["daily"], self._daily, "`/daily <n>`    — Daily profit", "Statistics"),
+            (["weekly"], self._weekly, "`/weekly <n>`   — Weekly profit", "Statistics"),
+            (["monthly"], self._monthly, "`/monthly <n>`  — Monthly profit", "Statistics"),
+            (["trades"], self._trades, "`/trades [limit]` — Recent closed trades", "Statistics"),
+            (
+                ["performance"],
+                self._performance,
+                "`/performance`  — Performance by pair",
+                "Statistics",
+            ),
+            (["buys", "entries"], self._enter_tag_performance, "", "Statistics"),
+            (["sells", "exits"], self._exit_reason_performance, "", "Statistics"),
+            (["mix_tags"], self._mix_tag_performance, "", "Statistics"),
+            (
+                ["stats"],
+                self._stats,
+                "`/stats`        — Win/Loss stats and durations",
+                "Statistics",
+            ),
+            (["count"], self._count, "`/count`        — Active trade count", "Statistics"),
+            # Configuration
+            (
+                ["show_config", "show_conf"],
+                self._show_config,
+                "`/show_config`  — Show running config",
+                "Configuration",
+            ),
+            (
+                ["reload_config", "reload_conf"],
+                self._reload_config,
+                "`/reload_config` — Reload config file",
+                "Configuration",
+            ),
+            (["whitelist"], self._whitelist, "`/whitelist`    — Show whitelist", "Configuration"),
+            (["blacklist"], self._blacklist, "`/blacklist`    — Show blacklist", "Configuration"),
+            (["blacklist_delete", "bl_delete"], self._blacklist_delete, "", "Configuration"),
+            (
+                ["marketdir"],
+                self._changemarketdir,
+                "`/marketdir`    — Set market direction",
+                "Configuration",
+            ),
+            # Info
+            (["balance"], self._balance, "`/balance`      — Show balances", "Info"),
+            (["locks"], self._locks, "`/locks`        — Show active locks", "Info"),
+            (["unlock", "delete_locks"], self._delete_locks, "", "Info"),
+            (["logs"], self._logs, "`/logs [limit]` — Show recent logs", "Info"),
+            (["health"], self._health, "`/health`       — Health check", "Info"),
+            (["version"], self._version, "`/version`      — Show version", "Info"),
+            (["help"], self._help, "`/help`         — Show this help", "Info"),
+            # Hidden / Others
+            (["order"], self._order, "", None),
+            (["list_custom_data"], self._list_custom_data, "", None),
+            (["tg_info"], self._tg_info, "", None),
+            (["profit_long"], self._profit_long, "", None),
+            (["profit_short"], self._profit_short, "", None),
+        ]
+
     def _start_thread(self):
         """
         Creates and starts the polling thread
@@ -173,57 +290,16 @@ class Telegram(RPCHandler):
             ["/status", "/status table", "/performance"],
             ["/count", "/start", "/stop", "/help"],
         ]
-        # do not allow commands with mandatory arguments and critical cmds
-        # TODO: DRY! - its not good to list all valid cmds here. But otherwise
-        #       this needs refactoring of the whole telegram module (same
-        #       problem in _help()).
-        valid_keys: list[str] = [
-            r"/start$",
-            r"/pause$",
-            r"/stop$",
-            r"/status$",
-            r"/status table$",
-            r"/trades$",
-            r"/performance$",
-            r"/buys",
-            r"/entries",
-            r"/sells",
-            r"/exits",
-            r"/mix_tags",
-            r"/daily$",
-            r"/daily \d+$",
-            r"/profit([_ ]long|[_ ]short)?$",
-            r"/profit([_ ]long|[_ ]short)? \d+$",
-            r"/stats$",
-            r"/count$",
-            r"/locks$",
-            r"/balance$",
-            r"/stopbuy$",
-            r"/stopentry$",
-            r"/reload_config$",
-            r"/show_config$",
-            r"/logs$",
-            r"/whitelist$",
-            r"/whitelist(\ssorted|\sbaseonly)+$",
-            r"/blacklist$",
-            r"/bl_delete$",
-            r"/weekly$",
-            r"/weekly \d+$",
-            r"/monthly$",
-            r"/monthly \d+$",
-            r"/forcebuy$",
-            r"/forcelong$",
-            r"/forceshort$",
-            r"/forcesell$",
-            r"/forceexit$",
-            r"/health$",
-            r"/help$",
-            r"/version$",
-            r"/marketdir (long|short|even|none)$",
-            r"/marketdir$",
-        ]
-        # Create keys for generation
-        valid_keys_print = [k.replace("$", "") for k in valid_keys]
+
+        # Extract commands from _get_commands
+        valid_keys: list[str] = []
+        for cmds, _, _, _ in self._get_commands():
+            for cmd in cmds:
+                # We allow exact matches or space + arguments
+                valid_keys.append(rf"/{cmd}( .*)?$")
+
+        # Create keys for generation (for test compatibility and readability)
+        valid_keys_print = [f"/{cmd[0]}" for cmd, _, _, _ in self._get_commands()]
 
         # custom keyboard specified in config.json
         cust_keyboard = self._config["telegram"].get("keyboard", [])
@@ -263,52 +339,7 @@ class Telegram(RPCHandler):
         self._app = self._init_telegram_app()
 
         # Register command handler and start telegram message polling
-        handles = [
-            CommandHandler("status", self._status),
-            CommandHandler("profit", self._profit),
-            CommandHandler("balance", self._balance),
-            CommandHandler("start", self._start),
-            CommandHandler("stop", self._stop),
-            CommandHandler(["forcesell", "forceexit", "fx"], self._force_exit),
-            CommandHandler(
-                ["forcebuy", "forcelong"],
-                partial(self._force_enter, order_side=SignalDirection.LONG),
-            ),
-            CommandHandler(
-                "forceshort", partial(self._force_enter, order_side=SignalDirection.SHORT)
-            ),
-            CommandHandler("reload_trade", self._reload_trade_from_exchange),
-            CommandHandler("trades", self._trades),
-            CommandHandler("delete", self._delete_trade),
-            CommandHandler(["coo", "cancel_open_order"], self._cancel_open_order),
-            CommandHandler("performance", self._performance),
-            CommandHandler(["buys", "entries"], self._enter_tag_performance),
-            CommandHandler(["sells", "exits"], self._exit_reason_performance),
-            CommandHandler("mix_tags", self._mix_tag_performance),
-            CommandHandler("stats", self._stats),
-            CommandHandler("daily", self._daily),
-            CommandHandler("weekly", self._weekly),
-            CommandHandler("monthly", self._monthly),
-            CommandHandler("count", self._count),
-            CommandHandler("locks", self._locks),
-            CommandHandler(["unlock", "delete_locks"], self._delete_locks),
-            CommandHandler(["reload_config", "reload_conf"], self._reload_config),
-            CommandHandler(["show_config", "show_conf"], self._show_config),
-            CommandHandler(["stopbuy", "stopentry", "pause"], self._pause),
-            CommandHandler("whitelist", self._whitelist),
-            CommandHandler("blacklist", self._blacklist),
-            CommandHandler(["blacklist_delete", "bl_delete"], self._blacklist_delete),
-            CommandHandler("logs", self._logs),
-            CommandHandler("health", self._health),
-            CommandHandler("help", self._help),
-            CommandHandler("version", self._version),
-            CommandHandler("marketdir", self._changemarketdir),
-            CommandHandler("order", self._order),
-            CommandHandler("list_custom_data", self._list_custom_data),
-            CommandHandler("tg_info", self._tg_info),
-            CommandHandler("profit_long", self._profit_long),
-            CommandHandler("profit_short", self._profit_short),
-        ]
+        handles = [CommandHandler(cmds, handler) for cmds, handler, _, _ in self._get_commands()]
         callbacks = [
             CallbackQueryHandler(self._status_table, pattern="update_status_table"),
             CallbackQueryHandler(self._daily, pattern="update_daily"),
@@ -1954,44 +1985,33 @@ class Telegram(RPCHandler):
                 "Optionally takes a rate at which to sell "
                 "(only applies to limit orders). \n"
             )
-        message = (
-            "🤖 *Bot Control*\n"
-            "• `/start`      — Starts the trader\n"
-            "• `/stop`       — Stops the trader\n"
-            "• `/pause`      — Pause new entries (keeps open trades)\n"
-            "• `/forceexit <id>|all` — Instantly exits trade(s)\n"
-            f"{force_enter_text if self._config.get('force_entry_enable', False) else ''}"
-            "• `/delete <id>` — Delete trade from DB (no exchange action)\n"
-            "• `/reload_trade <id>` — Reload trade from exchange\n"
-            "• `/cancel_open_order <id>` — Cancel open orders\n"
-            "\n"
-            "📊 *Statistics*\n"
-            "• `/status <id>|[table]` — List open trades\n"
-            "• `/profit [<n>]` — Cumulative profit (last n days)\n"
-            "• `/daily <n>`    — Daily profit\n"
-            "• `/weekly <n>`   — Weekly profit\n"
-            "• `/monthly <n>`  — Monthly profit\n"
-            "• `/trades [limit]` — Recent closed trades\n"
-            "• `/performance`  — Performance by pair\n"
-            "• `/stats`        — Win/Loss stats and durations\n"
-            "• `/count`        — Active trade count\n"
-            "\n"
-            "⚙️ *Configuration*\n"
-            "• `/show_config`  — Show running config\n"
-            "• `/reload_config` — Reload config file\n"
-            "• `/whitelist`    — Show whitelist\n"
-            "• `/blacklist`    — Show blacklist\n"
-            "• `/marketdir`    — Set market direction\n"
-            "\n"
-            "ℹ️ *Info*\n"  # noqa: RUF001
-            "• `/balance`      — Show balances\n"
-            "• `/locks`        — Show active locks\n"
-            "• `/logs [limit]` — Show recent logs\n"
-            "• `/health`       — Health check\n"
-            "• `/version`      — Show version\n"
-            "• `/help`         — Show this help\n"
-        )
 
+        messages = []
+        current_category = None
+        for _, _, help_text, category in self._get_commands():
+            if not help_text or not category:
+                continue
+
+            if category != current_category:
+                if current_category:
+                    messages.append("\n")
+                emoji_map = {
+                    "Bot Control": "🤖",
+                    "Statistics": "📊",
+                    "Configuration": "⚙️",
+                    "Info": "ℹ️",  # noqa: RUF001
+                }
+                emoji = emoji_map.get(category, "🔹")
+                messages.append(f"{emoji} *{category}*\n")
+                current_category = category
+
+            messages.append(f"• {help_text}\n")
+
+            if category == "Bot Control" and help_text.startswith("`/forceexit"):
+                if self._config.get("force_entry_enable", False):
+                    messages.append(force_enter_text)
+
+        message = "".join(messages)
         await self._send_msg(message, parse_mode=ParseMode.MARKDOWN)
 
     @authorized_only
