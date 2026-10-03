@@ -180,7 +180,7 @@ class ApiServer(RPCHandler):
         ApiServer._has_rpc = False
         del ApiServer._rpc
         ApiBG.exchanges = {}
-        ApiBG.jobs = FtTTLCache(maxsize=1000, ttl=3600)
+        ApiBG.jobs = FtTTLCache(maxsize=1000, ttl=3600)  # type: ignore
         if self._server and not self._standalone:
             logger.info("Stopping API Server")
             # self._server.force_exit, self._server.should_exit = True, True
