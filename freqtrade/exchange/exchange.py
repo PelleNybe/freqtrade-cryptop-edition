@@ -3804,26 +3804,13 @@ class Exchange:
                 return pair_tiers[0]["maxLeverage"]  # Max lev for lowest amount
 
             # Find the appropriate tier based on stake_amount
-            prior_max_lev = None
             for tier in pair_tiers:
-                # Adjust notional by leverage to do a proper comparison
-                min_stake = tier["minNotional"] / (prior_max_lev or tier["maxLeverage"])
                 max_stake = (
                     tier["maxNotional"] / tier["maxLeverage"]
                     if tier["maxNotional"] is not None
                     else float("inf")
                 )
-                prior_max_lev = tier["maxLeverage"]
-                if min_stake <= stake_amount <= max_stake:
-                    return tier["maxLeverage"]
-                if stake_amount < min_stake and stake_amount <= max_stake:
-                    # TODO: Remove this warning eventually
-                    # Code could be simplified by removing the check for min-stake in the above
-                    # condition, making this branch unnecessary.
-                    logger.warning(
-                        f"Fallback to next higher leverage tier for {pair}, stake: {stake_amount}, "
-                        f"min_stake: {min_stake}."
-                    )
+                if stake_amount <= max_stake:
                     return tier["maxLeverage"]
 
             #     else:  # if on the last tier
